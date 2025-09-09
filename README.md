@@ -32,7 +32,7 @@ tensorboard --logdir=trains/yyyy-mm-dd_hh-mm-ss
 
 ## Reference
 ```bash
-python reference.py --path image/video path --config config/default_reference.yaml
+python reference.py image/video_path --config config/default_reference.yaml
 ```
 
 ## Dataset
