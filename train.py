@@ -1,0 +1,250 @@
+import os
+import copy
+import yaml
+import torch
+import logging
+import argparse
+from tqdm import tqdm
+from datetime import datetime
+from torch import optim
+from torch.utils.data import DataLoader
+from torch.utils.tensorboard import SummaryWriter
+import albumentations as A
+from schedulefree import AdamWScheduleFree
+import itertools
+
+from src.model import SwinTransformerHead
+from src.loss import KLDivLoss
+from src.dataloader import DepthDataset
+from src.depth import DepthFeatureExtractor
+
+# DEVICE1 = (
+#     "cuda:0" if torch.cuda.is_available() else
+#     "mps"    if torch.backends.mps.is_available() else
+#     "cpu"
+# )
+
+# DEVICE2 = (
+#     "cuda:1" if torch.cuda.is_available() and torch.cuda.device_count() > 1 else
+#     "cuda:0" if torch.cuda.is_available() else
+#     "mps"    if torch.backends.mps.is_available() else
+#     "cpu"
+# )
+    
+
+def train(
+    cfg:dict,
+    save_dir:str,
+):
+    # config 
+    input_size = int(cfg["in_size"])
+    batch_size = int(cfg["batch"])
+    epochs = int(cfg["epoch"])
+    DEVICE1 = f"cuda:{int(cfg["DEVICE1"])}"
+    DEVICE2 = f"cuda:{int(cfg["DEVICE2"])}"
+    # pretrained model
+    pretrain_model = cfg.get("pretrain_model") if (cfg.get("pretrain_model") and os.path.isfile(cfg.get("pretrain_model"))) else None
+    
+    # Augmentation
+    augmentation = create_augmentation()
+    # augmentation = None
+  
+    loss_function = KLDivLoss(std=float(cfg["heatmapstd"]))
+    
+    logger = setup_logger(save_dir)
+    logger.info("Logger initialized.")
+
+    writer = SummaryWriter(log_dir=save_dir)
+    
+    logger.info("Loading Dataset...")
+    train_dataset = DepthDataset("data/train", input_size=input_size, augmentation=augmentation)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    valid_dataset = DepthDataset("data/val", input_size=input_size)
+    valid_loader = DataLoader(valid_dataset, batch_size=batch_size, shuffle=False)
+
+    # Depth Model
+    depthmodel_configs = {
+        'vits': {'encoder': 'vits', 'features': 64, 'out_channels': [48, 96, 192, 384]},
+        'vitb': {'encoder': 'vitb', 'features': 128, 'out_channels': [96, 192, 384, 768]},
+        'vitl': {'encoder': 'vitl', 'features': 256, 'out_channels': [256, 512, 1024, 1024]},
+        'vitg': {'encoder': 'vitg', 'features': 384, 'out_channels': [1536, 1536, 1536, 1536]}
+    }
+    encoder = cfg["DepthAnythingV2_encoder"]
+    depth_model = DepthFeatureExtractor(**depthmodel_configs[encoder], device=DEVICE2)
+    
+    depth_model.load_state_dict(torch.load(f'Depth_Anything_V2/checkpoints/depth_anything_v2_{encoder}.pth', map_location='cpu'))
+    depth_model = depth_model.to(DEVICE2).eval()
+    # for p in depth_model.parameters():
+    #     p.requires_grad_(False)
+    
+    # model
+    model = SwinTransformerHead(in_size=input_size, in_channel=depthmodel_configs['vits']['features'], out_channel=1, device=DEVICE1)
+    model = model.to(DEVICE1) 
+    logger.info(f"Model: model({depthmodel_configs['vits']['features']}x{input_size}x{input_size})_{cfg["model"]}")
+
+    # optimizer
+    optimizer = optim.AdamW(model.parameters(), lr=0.001)
+    # optimizer = AdamWScheduleFree(model.parameters())
+
+    start_epoch = 0
+    best_val_loss = float("inf")
+                             
+    if pretrain_model is not None and os.path.isfile(pretrain_model):
+        ckpt = torch.load(pretrain_model, map_location='cpu')
+        #model.load_state_dict(torch.load(pretrain_model, weights_only=True))
+        model.load_state_dict(ckpt["model"]) 
+        optimizer.load_state_dict(ckpt["optimizer"]) 
+        start_epoch = ckpt.get("epoch", -1) + 1
+        best_train_loss = ckpt.get("best_train", float("inf"))
+        best_val_loss = ckpt.get("best_val", float("inf"))
+        logger.info(f"Loaded pretrained model: {pretrain_model}")
+
+    best_model_weights = None
+
+    if isinstance(optimizer, AdamWScheduleFree):
+        logger.info("Schedule-Free calibration start")
+        model.train()
+        optimizer.eval()
+        with torch.no_grad():
+            for batch in tqdm(itertools.islice(train_loader, 50), total=50, desc="Calibration"):
+                model(batch)
+        model.eval()
+        logger.info("Schedule-Free calibration done")
+    
+    
+    for epoch in range(start_epoch,epochs):
+        model.train()
+        running_loss = 0.0
+        if best_train_loss < 2e-4:
+            train_dataset.random_crop = False
+            valid_dataset.random_crop = False
+
+        for batch, (images, pos) in enumerate(tqdm(train_loader, desc=f"Train : Epoch {epoch + 1}/{epochs}", unit="batch")):
+            images = images.to(DEVICE2)
+            # with torch.no_grad():
+            with torch.inference_mode(): 
+                feature, _ = depth_model(images)
+            feature = feature.to(DEVICE1)
+            pos = pos.to(DEVICE1)
+            optimizer.zero_grad()
+            
+            outputs = model(feature)
+            loss = loss_function(outputs, pos)
+            loss.backward()
+            optimizer.step()
+            
+            running_loss += loss.item()
+        
+        avg_train_loss = running_loss / len(train_loader)
+        logger.info(f"Epoch [{epoch+1}/{epochs}], Train Loss: {avg_train_loss:.6f}")
+        writer.add_scalar("Loss/Train", avg_train_loss, epoch+1)
+
+        # Validation
+        model.eval()
+        val_loss = 0.0
+        with torch.inference_mode(): 
+        # with torch.no_grad():
+            # for images, pos in tqdm(valid_loader, desc="Validating"):
+            for batch, (images, pos) in enumerate(tqdm(valid_loader, desc=f"Validation : Epoch {epoch + 1}/{epochs}", unit="batch")):
+                images = images.to(DEVICE2)
+                feature, _ = depth_model(images)
+                feature = feature.to(DEVICE1)
+                pos = pos.to(DEVICE1)
+                outputs = model(feature)
+                val_loss += loss_function(outputs, pos).item()
+
+        avg_val_loss = val_loss / len(valid_loader)
+        logger.info(f"Validation Loss: {avg_val_loss:.6f}")
+        writer.add_scalar("Loss/Validation", avg_val_loss, epoch+1)
+
+        if avg_val_loss < best_val_loss:
+            best_val_loss = avg_val_loss
+            logger.info(f"Best model updated (val_loss={best_val_loss:.6f})")
+
+        # best_model_weights = copy.deepcopy(model.state_dict())
+        ckpt = {
+            "model": copy.deepcopy(model.state_dict()),
+            "optimizer": optimizer.state_dict(),   # ← AdamWのm/vなどが入る
+            "epoch": epoch,                        # 次回は epoch+1 から
+            "val": avg_val_loss,
+            "best_train": best_train_loss,          # 任意
+            "best_val": best_val_loss,              # 任意
+        }
+        logger.info(f"model saved (val_loss={best_val_loss:.6f})")
+        torch.save(
+            ckpt,
+            os.path.join(save_dir, f"model({depthmodel_configs['vits']['features']}x{input_size}x{input_size})_{cfg['model']}_epoch{epoch+1}.pt")
+        )
+
+        torch.cuda.empty_cache()
+
+    writer.close()
+
+
+def setup_logger(log_dir: str):
+    os.makedirs(log_dir, exist_ok=True)
+    log_file = os.path.join(log_dir, "train.log")
+    
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
+
+    # コンソール用ハンドラ
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
+    formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+    console_handler.setFormatter(formatter)
+
+    # ファイル用ハンドラ
+    file_handler = logging.FileHandler(log_file, mode="w", encoding="utf-8")
+    file_handler.setLevel(logging.INFO)
+    file_handler.setFormatter(formatter)
+
+    # 既存のハンドラを消す（重複防止）
+    if logger.hasHandlers():
+        logger.handlers.clear()
+    
+    # ハンドラを登録
+    logger.addHandler(console_handler)
+    logger.addHandler(file_handler)
+
+    return logger
+
+
+def load_config(config_path:str):
+    with open(config_path, "r") as f:
+        return yaml.safe_load(f)
+    
+
+def create_augmentation():
+    aug = A.Compose([        
+        A.Affine(
+            scale=(0.9,1.1),
+            translate_percent=(-0.05,0.05),
+            rotate=(-10,10),
+            shear=(-5,5),
+            p=0.3
+        ),
+        A.HorizontalFlip(p=0.5)
+    ],
+    keypoint_params=A.KeypointParams(format='xy', remove_invisible=False),
+    bbox_params=A.BboxParams(format="pascal_voc")
+    )
+    return aug
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="学習コード")
+    parser.add_argument("--config", default="config.yaml", help="設定ファイルのパス")
+    args = parser.parse_args()
+
+    assert os.path.exists(args.config), f"config {args.config} is not exists."
+    
+    cfg = load_config(args.config)
+
+    # モデル保存フォルダ
+    save_dir = os.path.join("trains_depth", datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
+    os.makedirs(save_dir, exist_ok=True)
+    with open(os.path.join(save_dir, "config.yaml"), "w", encoding="utf-8") as f:
+        yaml.safe_dump(cfg, f)
+
+    train(cfg=cfg, save_dir=save_dir)
+    

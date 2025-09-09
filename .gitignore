@@ -1,0 +1,15 @@
+.vscode/
+Depth_Anything_V2/
+pictures/
+trains/
+trains_depth/
+models/
+src/utils(old).py
+data/
+data_old/
+debug/
+reference/
+output.png
+yolo11n.pt
+config/simple.yaml
+example/

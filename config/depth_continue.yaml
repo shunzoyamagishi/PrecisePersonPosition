@@ -1,0 +1,26 @@
+in_size: 224
+epoch: 10
+batch: 2
+model: "SwinHead"
+DepthAnythingV2_encoder: "vits"
+heatmapstd: 5
+pretrain_model: "/mnt/e/Projects/SHADOW/trains_depth/2025-09-06_12-38-43/model(64x224x224)_SwinHead_epoch6.pt"
+# pretrain: "/mnt/e/Projects/SHADOW/trains_depth/2025-09-05_16-22-51/model(64x224x224)_SwinHead_epoch7.pt"
+DEVICE1: 0
+DEVICE2: 1
+
+# augmentation:
+#   brightness_limit: 0.2
+#   contrast_limit: 0.2
+#   hue_shift_limit: 40
+#   sat_shift_limit: 40
+#   val_shift_limit: 20
+#   coarse_dropout:
+#     num_holes_range: [20, 40]
+#     hole_height_range: [0.05, 0.1]
+#     hole_width_range: [0.05, 0.1]
+#     p: 0.5
+#   blur_p: 0.2
+#   noise_p: 0.2
+#   compression_p: 0.3
+#   affine_p: 0.6
