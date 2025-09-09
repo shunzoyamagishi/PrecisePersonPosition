@@ -1,13 +1,14 @@
 # MyProject
 
-This repository includes code that is **adapted from**  
-[Depth-Anything-V2](https://github.com/DepthAnything/Depth-Anything-V2).
+This repository includes code that is **adapted from** [Depth-Anything-V2](https://github.com/DepthAnything/Depth-Anything-V2).
 
-## install
+## Install
 ```bash
-git clone https://github.com/DepthAnything/Depth-Anything-V2.git
-mv Depth-Anything-V2 Depth_Anything_V2 && cd Depth_Anything_V2
+git clone https://github.com/shunzoyamagishi/PrecicePersonPosition.git
+cd PrecicePersonPosition
 pip install -r requirement.txt
+git clone https://github.com/DepthAnything/Depth-Anything-V2.git
+mv Depth-Anything-V2 Depth_Anything_V2
 ```
 - Download checkpoints from DepthAnythingV2 repogitory and put in "checkpoints" directory.
 - Refer to the [Depth-Anything-V2 repository](https://github.com/DepthAnything/Depth-Anything-V2), download the checkpoint file from that repository, and place it in checkpoint directory.
@@ -17,15 +18,14 @@ pip install -r requirement.txt
 ```bash
 python train.py --config config/default.yaml
 ```
-学習結果は`trains/yyyy-mm-dd_hh-mm-ss`に  
-- `config.yaml` (実行したconfigファイルのコピー)
-- `train.log`  (ログファイル)
-- `events.out.tfevent`ファイル
-- 学習途中のweight  
 
-が保存されます。  
+- `config.yaml` (copy of config file)
+- `train.log`
+- `events.out.tfevent`
+- `checkpoints`  
+are saved at `trains/yyyy-mm-dd_hh-mm-ss`.
 
-学習のログを確認するには
+To check training log:
 ```bash
 tensorboard --logdir=trains/yyyy-mm-dd_hh-mm-ss
 ```
@@ -35,6 +35,8 @@ tensorboard --logdir=trains/yyyy-mm-dd_hh-mm-ss
 python reference.py --path image/video path --config config/default_reference.yaml
 ```
 
+## Dataset
+To be updated later.
 
 
 ## License
