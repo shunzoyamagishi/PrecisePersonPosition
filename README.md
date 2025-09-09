@@ -13,10 +13,16 @@ mv Depth-Anything-V2 Depth_Anything_V2
 - Download checkpoints from DepthAnythingV2 repogitory and put in "checkpoints" directory.
 - Refer to the [Depth-Anything-V2 repository](https://github.com/DepthAnything/Depth-Anything-V2), download the checkpoint file from that repository, and place it in checkpoint directory.
 
+## Model
+![](model.png)
 
 ## Train
 ```bash
 python train.py --config config/default.yaml
+```
+To train full dataset:
+```bash
+python train_full.py --config config/default.yaml
 ```
 
 - `config.yaml` (copy of config file)
