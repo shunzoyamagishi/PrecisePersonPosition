@@ -36,9 +36,9 @@ To check training log:
 tensorboard --logdir=trains/yyyy-mm-dd_hh-mm-ss
 ```
 
-## Reference
+## Inference
 ```bash
-python reference.py image/video_path --config config/default_reference.yaml
+python inference.py image/video_path --config config/default_inference.yaml
 ```
 
 ## Dataset
