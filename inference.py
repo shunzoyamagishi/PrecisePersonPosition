@@ -4,7 +4,7 @@ import cv2
 import numpy as np
 import time
 import argparse
-from datetime import datetime
+from typing import Tuple, Optional
 
 from src.model import PositionEstimator
 from src.utils import load_config
@@ -27,15 +27,15 @@ VID_EXTS = {
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-def reference(path:str, cfg:dict):    
+def inference(path:str, cfg:dict):    
     model = PositionEstimator(cfg=cfg, DEVICE=DEVICE)
     yolo = YOLO("yolo11n.pt").to(DEVICE)
 
     print("Person Detection")
     if is_video(path):
-        results = yolo.track(path, classes=[0])
+        results = yolo.track(path, classes=[0], conf=0.5)
     elif is_image(path):
-        results = yolo.predict(path, classes=[0])
+        results = yolo.predict(path, classes=[0], conf=0.5)
 
     print("Position Estimation")
     for f, r in enumerate(results):
@@ -45,7 +45,7 @@ def reference(path:str, cfg:dict):
         pos = []
         for i, in_region in enumerate(r.boxes.in_region):
             input = cv2.cvtColor(r.orig_img[in_region[1]:in_region[3],in_region[0]:in_region[2]], cv2.COLOR_BGR2RGB)
-            depth_result, pred_result = model.reference(input)
+            depth_result, pred_result = model.inference(input)
             mask_region = r.boxes.xyxy[i].to("cpu").numpy().astype(np.int16)- np.tile(r.boxes.in_region[i][0:2],2)
             pred_result = mask_prediction(pred_result, mask_region.astype(np.uint16))
             # p = calc_max(pred_result) + in_region[0:2]
@@ -64,7 +64,7 @@ def reference(path:str, cfg:dict):
         height, width = results[0].orig_shape
         fourcc = cv2.VideoWriter_fourcc(*"mp4v")  # 出力形式 (mp4)
 
-        output_path = os.path.join("reference", f"{os.path.splitext(os.path.basename(path))[0]}.mp4")
+        output_path = os.path.join("inference", f"{os.path.splitext(os.path.basename(path))[0]}.mp4")
         out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
         for f, r in enumerate(results):
             frame = r.plot()
@@ -79,7 +79,7 @@ def reference(path:str, cfg:dict):
         print(f"Result has been saved to: {output_path}")
 
     elif is_image(path):
-        output_path = os.path.join("reference", f"{os.path.splitext(os.path.basename(path))[0]}.jpg")
+        output_path = os.path.join("inference", f"{os.path.splitext(os.path.basename(path))[0]}.jpg")
         frame = results[0].plot()
         for i in range(results[0].boxes.cls.shape[0]):
             pos = results[0].boxes.position[i].astype(np.int16)
@@ -170,32 +170,110 @@ def crop_input(result:Results, pad:int=0, allow_shrink:bool=True)->np.ndarray:
     return np.array(in_region)
 
 
-def mask_prediction(arr:np.ndarray, box:np.ndarray)->np.ndarray:
-    mask = np.zeros_like(arr)
-    mask[:, box[0]:box[2]] = arr[:, box[0]:box[2]]*horizontal_weight(arr[:, box[0]:box[2]].shape, kind="gaussian", sigma_ratio=0.4)
-    mask = (mask - mask.mean()) / (mask.std() + 1e-8)
+
+
+def _validate_box(box: np.ndarray, W: int, H: int) -> Tuple[int, int, int, int]:
+    """
+    box = [x1, y1, x2, y2] を画像サイズにクリップし、整数化して返す。
+    x1<x2, y1<y2 が満たせない場合は ValueError。
+    """
+    x1, y1, x2, y2 = map(int, box)
+    x1 = int(np.clip(x1, 0, W))
+    x2 = int(np.clip(x2, 0, W))
+    y1 = int(np.clip(y1, 0, H))
+    y2 = int(np.clip(y2, 0, H))
+    if not (x1 < x2 and y1 < y2):
+        raise ValueError(f"Invalid box after clipping: {(x1, y1, x2, y2)}")
+    return x1, y1, x2, y2
+
+
+def _gaussian_1d(L: int, sigma_ratio: float = 0.2, center: Optional[int] = None) -> np.ndarray:
+    """長さ L の 1D ガウス。最大値で 1 に正規化。"""
+    x = np.arange(L, dtype=np.float32)
+    c = (L - 1) / 2.0 if center is None else float(center)
+    sigma = max(L * float(sigma_ratio), 1e-6)
+    w = np.exp(-((x - c) ** 2) / (2.0 * sigma ** 2))
+    return w / (w.max() + 1e-12)
+
+
+def _sigmoid_top_to_bottom(L: int, sharpness: float = 0.1, center: Optional[int] = None, top_scale: float = 0.4) -> np.ndarray:
+    """
+    上端→中央→下端にかけて α→1 に単調増加する 1D シグモイド。
+    top_scale=α (0<α<=1) が上端の最小倍率。
+    """
+    y = np.arange(L, dtype=np.float32)
+    cy = (L - 1) / 2.0 if center is None else float(center)
+    k = float(sharpness)
+    s = 1.0 / (1.0 + np.exp(-k * (y - cy)))      # 0→1
+    return float(top_scale) + (1.0 - float(top_scale)) * s  # α→1
+
+
+def make_weight(
+    H: int,
+    W: int,
+    *,
+    sigma_ratio_x: float = 0.4,
+    sigma_ratio_y: float = 1.0,
+    sharpness_sigmoid: float = 3e-2,
+    center_x: Optional[int] = None,
+    center_y: Optional[int] = None,
+    top_scale: float = 0.0,
+    gamma_x: float = 1.0,
+    ar_thresh: float = 4/5,          # アスペクト比判定の閾値 (W/H < 0.8 で縦長寄り)
+) -> np.ndarray:
+    """
+    (H, W) の 2D 重みマップを生成。
+    - 縦長寄り (W/H < ar_thresh):   x にガウス、y にシグモイド(上弱/下強)
+    - 横長または正方 (W/H >= ...): x, y ともにガウス
+    """
+    wx = _gaussian_1d(W, sigma_ratio_x, center_x) ** float(gamma_x)
+    if (W / H) < float(ar_thresh):
+        wy = _sigmoid_top_to_bottom(H, sharpness_sigmoid, center_y, top_scale)
+    else:
+        wy = _gaussian_1d(H, sigma_ratio_y, center_y)
+    return wy[:, None] * wx[None, :]
+
+
+def mask_prediction(
+    heatmap: np.ndarray,
+    box: np.ndarray,
+    *,
+    normalize: bool = True,
+    eps: float = 1e-8,
+    **weight_kwargs,
+) -> np.ndarray:
+    """
+    入力 2D 配列 heatmap に対し、box=[x1,y1,x2,y2] 領域へ重みマップを掛けた値を配置し、
+    領域外は 0。最後に（デフォルト）全体を z-score 正規化。
+    weight_kwargs は make_weight にそのまま渡される。
+
+    For the input 2D array `heatmap`, place values obtained by applying the weight map to the region `box=[x1,y1,x2,y2]`, setting values outside this region to 0. Finally, perform z-score normalization on the entire array (default).
+    `weight_kwargs` is passed directly to `make_weight`.
+    """
+    if heatmap.ndim != 2:
+        raise ValueError(f"`heatmap` must be 2D (H,W). Got shape={heatmap.shape}")
+
+    H, W = heatmap.shape[:2]
+    # Horizontal filtering is applied to the heatmap.
+    x1, _, x2, _ = _validate_box(box, W, H)
+    # Vertical filtering is NOT applied to the heatmap.
+    y1 = 0
+    y2 = H
+
+    mask = np.zeros_like(heatmap, dtype=np.float32)
+
+    # 該当領域の元値をコピーし、重みを乗算
+    patch = heatmap[y1:y2, x1:x2].astype(np.float32, copy=False)
+    w = make_weight(y2 - y1, x2 - x1, **weight_kwargs).astype(np.float32, copy=False)
+    mask[y1:y2, x1:x2] = patch * w
+
+    if normalize:
+        m = mask.mean(dtype=np.float64)
+        s = mask.std(dtype=np.float64)
+        mask = (mask - m) / (s + eps)
+
     return mask
 
-
-def horizontal_weight(size:tuple, kind:str="gaussian", sigma_ratio:float=0.2, gamma:float=1.0)->np.ndarray:
-    H,W = size
-    def _oned_weight(L:int, kind:str="gaussian", sigma_ratio:float=0.2)->np.ndarray:
-        x = np.arange(L, dtype=np.float32)
-        c = (L - 1) / 2.0
-        if kind == "gaussian":
-            sigma = max(L * sigma_ratio, 1e-6)
-            w = np.exp(-((x - c) ** 2) / (2 * sigma ** 2))
-        elif kind == "tri":
-            w = 1.0 - np.abs(x - c) / max(c, 1e-6)
-            w = np.clip(w, 0.0, 1.0)
-        elif kind == "cos":
-            w = 0.5 * (1.0 + np.cos(np.pi * (x - c) / max(c, 1e-6)))
-        else:
-            raise ValueError("kind must be 'gaussian' | 'tri' | 'cos'")
-        return w / (w.max() + 1e-12)  # 最大1で正規化
-    
-    w_x = _oned_weight(W, kind, sigma_ratio) ** gamma         # 形 (W,)
-    return np.tile(w_x[None, :], (H, 1))# 形 (H, W)
 
 
 def calc_max(arr:np.ndarray)->np.ndarray:
@@ -244,17 +322,17 @@ def calc_peak_centroid(arr: np.ndarray, r: int = 20, rel_thresh: float | None = 
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="referenceコード")
+    parser = argparse.ArgumentParser(description="inferenceコード")
     parser.add_argument("input_path", help="input video/image path.")
     parser.add_argument("--config", default="config/defalut.yaml", help="設定ファイルのパス")
     args = parser.parse_args()    
 
-    assert os.path.exists(args.path), f"input {args.path} is not exists."
+    assert os.path.exists(args.input_path), f"input {args.input_path} is not exists."
     assert os.path.exists(args.config), f"config {args.config} is not exists."
 
     cfg = load_config(args.config)
 
-    if not os.path.isdir("reference"):
-        os.makedirs("reference")
+    if not os.path.isdir("inference"):
+        os.makedirs("inference")
 
-    reference(path=args.path, cfg=cfg)
+    inference(path=args.input_path, cfg=cfg)

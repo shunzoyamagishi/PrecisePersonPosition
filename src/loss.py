@@ -50,7 +50,7 @@ class SoftArgmaxLoss(nn.Module):
         return coords
 
 
-class KLDivLoss(nn.Module):
+class KLDivLoss_old(nn.Module):
     def __init__(self, std:float=5.0):
         super().__init__()
         self.gausianstd = std
@@ -222,15 +222,25 @@ class MSELoss(nn.Module):
         return heatmap
     
 
-class CombinedLoss(nn.Module):
-    def __init__(self, Lambda:float=0.5, beta:float=100.0, std:float=10.0):
+class KLDivLoss(nn.Module):
+    def __init__(self):
         super().__init__()
-        self.softargmaxloss = SoftArgmaxLoss(beta)
-        self.kldivloss = KLDivLoss(std)
-        self.weight_argmax = 1e-4 #*Lambda
-        self.weight_kldiv = 1.0 #- Lambda
 
-    def forward(self, pred, target):
-        loss_softargmax = self.softargmaxloss(pred, target)
-        loss_kldiv = self.kldivloss(pred, target)
-        return self.weight_argmax * loss_softargmax + self.weight_kldiv * loss_kldiv
+    def forward(self, pred:torch.Tensor, target_map:torch.Tensor,eps:float=1e-6) -> torch.Tensor:
+        B = pred.size(0)
+        
+        # reshape
+        pred = pred.reshape(B, 1, -1)
+        target_map = target_map.reshape(B, 1, -1)
+
+        # log_softmax
+        pred_logsoftmax = F.log_softmax(pred, dim=2)
+
+        # 正規化して確率分布に
+        target_probs = F.softmax(target_map, dim=2) + eps
+        target_probs = target_probs / target_probs.sum(dim=2, keepdim=True)
+
+
+        kl_loss = nn.KLDivLoss(reduction="batchmean")
+        loss = kl_loss(pred_logsoftmax, target_probs)
+        return loss

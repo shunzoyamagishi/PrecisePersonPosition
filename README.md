@@ -42,14 +42,58 @@ python reference.py image/video_path --config config/default_reference.yaml
 ```
 
 ## Dataset
+
+data/　　  
+├── train/  
+│   ├── motion1/  
+│   │   ├── 001  
+│   │   │   ├── data.json   
+│   │   │   ├── image000.jpg  
+│   │   │   ├── image002.jpg  
+│   │   │   ...  
+│   │   ├── 002  
+│   │   ├── 003  
+│   │   ...  
+│   ...  
+├── val/  
+└── test/  
+
 To be updated later.
+Structure of data.json:  
+
+```json
+{
+  "imgs": [
+    {
+      "img_name": "Image Sequence_000_0000.jpg",
+      "bbox": [
+      ],
+      "pos": [
+      ]
+    },
+    ...
+  ],
+  "Camera Parameter": {
+    "Perspective Projection Matrix": [
+    ],
+    "Camera Matrix": [
+    ],
+    "Rotation Matrix": [
+    ],
+    "Camera Position": [
+    ]
+  }
+}
+
+```
 
 
 ## License
 
-This project follows different licensing conditions depending on the model used:
+This project follows [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0) by default.  
+If you use **Depth-Anything-V2-Base / Large / Giant**, [CC-BY-NC-4.0](https://creativecommons.org/licenses/by-nc/4.0/) applies.
 
-- **Depth-Anything-V2-Small**  
+- **Depth-Anything-V2-Small**(default)  
   Licensed under [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0)
 
 - **Depth-Anything-V2-Base / Large / Giant**  

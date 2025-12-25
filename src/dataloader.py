@@ -9,103 +9,9 @@ import numpy as np
 import random
 from typing import Any
 from Depth_Anything_V2.depth_anything_v2.util.transform import Resize, NormalizeImage, PrepareForNet
-
-class FrameDataset(Dataset):
-    def __init__(self, root_dir:str, input_size:tuple=(224,224), augmentation=None):
-        """
-        root_dir: 動画ごとのフォルダが並んでいるルートディレクトリ
-        transform: 画像に適用する変換
-        """
-        self.root_dir = root_dir
-        self.input_w, self.input_h = input_size
-        self.augmentation = augmentation
-        self.transform = transforms.Compose([
-            transforms.ToTensor(),
-            transforms.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
-        ])
-        self.samples = [] 
-
-        # フォルダごとに探索
-        for motion_folder in sorted(os.listdir(root_dir)):
-            motion_path = os.path.join(root_dir, motion_folder)
-            for video_folder in sorted(os.listdir(motion_path)):
-                video_path = os.path.join(motion_path, video_folder)
-                with open(os.path.join(video_path, "data.json"), 'r') as json_data:
-                    data = json.load(json_data)
-
-                for img in data['imgs']:
-                    img['img_name'] = os.path.join(video_path, img['img_name'])
-
-                self.samples += data['imgs']
-
-
-    def __len__(self):
-        return len(self.samples)
+   
     
-
-    def __getitem__(self, idx):
-        item = self.samples[idx]
-        # image = Image.open(item['img_name']).convert('RGB')
-        image = cv2.imread(item['img_name'])
-        pos = np.array(item['pos'])
-        bbox = np.array(item['bbox'])
-        if self.augmentation:
-            augmented = self.augmentation(image=image, keypoints=np.expand_dims(pos,0), bboxes=np.expand_dims(bbox,0))
-            # image = Image.fromarray(cv2.cvtColor(augmented["image"],cv2.COLOR_BGR2RGB))
-            image = augmented["image"]
-            pos = augmented['keypoints'][0]
-            bbox = augmented['bboxes'][0].astype(np.int32)
-
-        image = cv2.cvtColor(image,cv2.COLOR_BGR2RGB)
-        bbox, (bbox_w, bbox_h) = self.pad_image(bbox)
-        image = self.crop_with_padding(image, bbox)
-        image = cv2.resize(image,(self.input_w, self.input_h))
-        pos = np.array([self.input_w/bbox_w, self.input_h/bbox_h])*(pos - bbox[0:2])
-                
-        return self.transform(image), torch.from_numpy(pos.astype(np.float32)).clone()
-
-
-    def pad_image(self, bbox:list)->list:
-        width = bbox[2]-bbox[0]
-        height = bbox[3]-bbox[1]
-        
-        if width > height:
-            bbox[3] += width-height
-        elif height > width:
-            bbox[2] += height-width
-
-        return bbox, (bbox[2]-bbox[0], bbox[3]-bbox[1])
-    
-
-    def crop_with_padding(self, image:np.ndarray, crop_rect:np.ndarray)->np.ndarray:
-        
-        xmin, ymin, xmax, ymax = crop_rect
-        crop_width = xmax - xmin
-        crop_height = ymax - ymin
-
-        if len(image.shape) == 2:
-            channels = 1
-        else:
-            channels = image.shape[2]
-        cropped = np.zeros((crop_height, crop_width, channels), dtype=image.dtype) if channels > 1 else np.zeros((crop_height, crop_width), dtype=image.dtype)
-
-        img_h, img_w = image.shape[:2]
-        x1_src = max(xmin, 0)
-        y1_src = max(ymin, 0)
-        x2_src = min(xmax, img_w)
-        y2_src = min(ymax, img_h)
-
-        x1_dst = x1_src - xmin
-        y1_dst = y1_src - ymin
-        x2_dst = x1_dst + (x2_src - x1_src)
-        y2_dst = y1_dst + (y2_src - y1_src)
-
-        cropped[y1_dst:y2_dst, x1_dst:x2_dst] = image[y1_src:y2_src, x1_src:x2_src]
-
-        return cropped
-    
-
-class DepthDataset(Dataset):
+class PersonPositionDataset(Dataset):
     def __init__(self, root_dir:str, input_size:int=224, augmentation:Any=None, random_crop:bool=True):
         """
         root_dir: 動画ごとのフォルダが並んでいるルートディレクトリ
@@ -135,31 +41,44 @@ class DepthDataset(Dataset):
         # フォルダごとに探索
         for motion_folder in sorted(os.listdir(root_dir)):
             motion_path = os.path.join(root_dir, motion_folder)
+            if not os.path.isdir(motion_path):
+                continue
             for video_folder in sorted(os.listdir(motion_path)):
                 video_path = os.path.join(motion_path, video_folder)
+                if not os.path.isdir(video_path):
+                    continue
                 with open(os.path.join(video_path, "data.json"), 'r') as json_data:
                     data = json.load(json_data)
 
                 for img in data['imgs']:
                     img['img_name'] = os.path.join(video_path, img['img_name'])
+                    img['PerspectiveProjectionMatrix'] = data["Camera Parameter"]["Perspective Projection Matrix"]
 
                 self.samples += data['imgs']
 
-
     def __len__(self):
         return len(self.samples)
-    
 
     def __getitem__(self, idx):
         item = self.samples[idx]
         image = cv2.imread(item['img_name'])
         pos_gt = np.array(item['pos'])
-        bbox_pref = np.array(item['bbox'])
+        bbox_pref = np.array(item['bbox'])        
+        P = np.array(item['PerspectiveProjectionMatrix'])
         if self.augmentation:
             augmented = self.augmentation(image=image, keypoints=np.expand_dims(pos_gt,0), bboxes=np.expand_dims(bbox_pref,0))
             image = augmented["image"]
             pos_gt = augmented['keypoints'][0]
             bbox_pref = augmented['bboxes'][0].astype(np.int32)
+            flip_applied = any(
+                t.get("__class_fullname__", "").endswith("HorizontalFlip") and t.get("applied", False)
+                for t in augmented["replay"]["transforms"]
+            )
+            if flip_applied:
+                Hx = np.array([[-1, 0, image.shape[1] - 1],
+                            [ 0, 1, 0],
+                            [ 0, 0, 1]], dtype=float)
+                P = Hx @ P
 
         image = cv2.cvtColor(image,cv2.COLOR_BGR2RGB)
         if self.random_crop:
@@ -168,13 +87,32 @@ class DepthDataset(Dataset):
             image, bbox, side = self.square_crop(image, pos_gt, bbox_pref)
         image = cv2.resize(image,(self.input_size, self.input_size))
         pos = np.array([self.input_size/side, self.input_size/side])*(pos_gt - bbox[0:2])
+
+        P = np.array([[self.input_size/side,0,0],[0,self.input_size/side,0],[0,0,1]])@np.array([[1,0,-bbox[0]],[0,1,-bbox[1]],[0,0,1]])@P
+
+        # heatmap in image coordinate
+        hmap1 = self.generate_gaussian_heatmap(shape=(self.input_size,self.input_size), centers=pos, sigma=5.0)
+        
+        # heatmap in perspective
+        H_field2image = P[:,[0,1,3]]
+        Ht = np.array([[1/200, 0, -1], [0, 1/200, -1], [0,0,1]])
+        r = self.local_radius_for_target_area(H_field2image@Ht)
+
+        hmap2 = self.generate_gaussian_heatmap(sigma=min(r,100))
+        hmap2 = cv2.warpPerspective(
+            hmap2, H_field2image@Ht, (self.input_size,self.input_size),
+            flags=cv2.INTER_LINEAR,
+            borderMode=cv2.BORDER_CONSTANT,
+            borderValue=(0,0,0)
+        )
+        hmap2 /= (hmap2.max() + 1e-8)
+        heatmap = np.stack([hmap1,hmap2]) 
         
         image = image / 255.0
         image = self.transform({'image': image})['image']
-        image = torch.from_numpy(image)
                 
-        return image, torch.from_numpy(pos.astype(np.float32)).clone()
-
+        return torch.from_numpy(image).clone(), torch.from_numpy(pos.astype(np.float32)).clone(),  torch.from_numpy(heatmap.astype(np.float32)).clone(),torch.from_numpy(P.astype(np.float32)).clone()
+    
 
     def square_crop(self, image:np.ndarray, point:np.ndarray, bbox:list)->tuple[np.ndarray, np.ndarray, int]:
         h, w = image.shape[:2]
@@ -188,7 +126,7 @@ class DepthDataset(Dataset):
             bbox[0] -= (bh-bw)//2
             bbox[2] += (bh-bw)//2 + (bh-bw)%2
 
-        margin = min(point[0]-bbox[0], point[1]-bbox[1], bbox[2]-point[0], bbox[3]-point[1])
+        margin = int(min(point[0]-bbox[0], point[1]-bbox[1], bbox[2]-point[0], bbox[3]-point[1]))
         pad = random.randint(-2*margin//3, 2*margin//3)
         bbox[0] -= pad
         bbox[1] -= pad
@@ -308,18 +246,83 @@ class DepthDataset(Dataset):
         y0_min = max(0, y - side + 1)
         y0_max = min(h - side, y)
         x0 = (x0_min + x0_max) // 2
-        y0 = min(y0_max, max(y0_min, y - int(0.8 * (side - 1))))  # なるべく下寄りで救済
+        y0 = min(y0_max, max(y0_min, y - int(0.8 * (side - 1))))
 
         bbox = np.array([x0, y0, x0 + side, y0 + side], dtype=np.int32)
         return image[bbox[1]:bbox[3], bbox[0]:bbox[2]], bbox, side
 
 
-class PersonPositionDataset_Full(DepthDataset):
-    def __init__(self, root_dir:str, input_size:int=224, augmentation:Any=None, random_crop:bool=True):
+    def generate_gaussian_heatmap(self, shape:tuple=(400,400), centers:np.ndarray=None, sigma:float=40.0) -> np.ndarray:
+        """
+        pred: [B, 1, H, W] (dummy shapeを利用してサイズを決定するだけ)
+        centers: [B, 2] (x, y)
+        sigma: float
+        Returns:
+            heatmap: [B, 1, H, W]
+        """
+        H, W = shape
+        
+        if centers is None:
+            centers = np.array([W/2, H/2])
+
+        # (H, W) grid
+        yy, xx = np.meshgrid(
+            np.arange(H, dtype=np.float32),
+            np.arange(W, dtype=np.float32),
+            indexing="ij"
+        )
+
+        heatmap = np.zeros((H, W), dtype=np.float32)
+
+        
+        x0, y0 = centers.astype(np.float32)
+        distance_sq = (xx - x0) ** 2 + (yy - y0) ** 2
+        gaussian = np.exp(-distance_sq / (2 * sigma ** 2))
+        heatmap = gaussian
+
+        return heatmap
+    
+    def local_radius_for_target_area(self, H: np.ndarray, center:tuple[float,float]=(200,200), A_tar:float=100.0) -> float:
+        """
+        局所近似: 位置 (x0, y0) に中心を置く元画像上の円の半径 r を返す。
+        ホモグラフィ H により射影した後の面積が A_tar になるように r を決める。
+
+        H: 3x3 homography (任意スケール OK)
+        (x0, y0): 円の中心（元画像座標系）
+        A_tar: 射影後の目標面積 (>0)
+
+        戻り値: 半径 r
+        """
+        x0, y0 = center
+        H = np.asarray(H, dtype=float)
+        assert H.shape == (3, 3), "H must be 3x3"
+        if A_tar <= 0:
+            raise ValueError("A_tar must be positive.")
+
+        # Jacobianの面積スケール s(x0,y0) = |det(H)| / |h31*x0 + h32*y0 + h33|^3
+        detH = np.linalg.det(H)
+        w = H[2,0]*x0 + H[2,1]*y0 + H[2,2]
+
+        if np.isclose(w, 0.0):
+            raise ZeroDivisionError("w ≈ 0（地平線付近）で局所近似の式が発散します。中心位置をずらしてください。")
+
+        s = abs(detH) / (abs(w)**3)
+
+        if s <= 0:
+            raise ValueError("無効なスケール s が計算されました（Hが特異に近い可能性）。")
+
+        # r = sqrt( A_tar / (pi * s) )
+        r = np.sqrt(A_tar / (np.pi * s))
+        return float(r)
+    
+
+class PersonPositionDataset_Full(PersonPositionDataset):
+    def __init__(self, root_dir:str, input_size:int=224, augmentation:Any=None, random_crop:bool=True, heatmap_perspectivetransform:bool=False):
         self.root_dir = root_dir
         self.input_size = input_size
         self.augmentation = augmentation
         self.random_crop = random_crop
+        self.heatmap_perspectivetransform = heatmap_perspectivetransform
         self.transform = transforms.Compose([
             # transforms.ToTensor(),
             Resize(
@@ -336,46 +339,24 @@ class PersonPositionDataset_Full(DepthDataset):
         ])
         self.samples = [] 
         
-        for base_folder in ["train", "val", "test"]:
+        # for base_folder in ["train", "val", "test"]:
+        for base_folder in ["train", "val"]:
             base_path = os.path.join(root_dir, base_folder)
+            if not os.path.isdir(base_path):
+                continue
             for motion_folder in sorted(os.listdir(base_path)):
                 motion_path = os.path.join(base_path, motion_folder)
+                if not os.path.isdir(motion_path):
+                    continue
                 for video_folder in sorted(os.listdir(motion_path)):
                     video_path = os.path.join(motion_path, video_folder)
+                    if not os.path.isdir(video_path):
+                        continue
                     with open(os.path.join(video_path, "data.json"), 'r') as json_data:
                         data = json.load(json_data)
 
                     for img in data['imgs']:
                         img['img_name'] = os.path.join(video_path, img['img_name'])
+                        img['PerspectiveProjectionMatrix'] = data["Camera Parameter"]["Perspective Projection Matrix"]
 
                     self.samples += data['imgs']
-
-    
-    def __getitem__(self, idx):
-        item = self.samples[idx]
-        # image = Image.open(item['img_name']).convert('RGB')
-        image = cv2.imread(item['img_name'])
-        pos_gt = np.array(item['pos'])
-        bbox_pref = np.array(item['bbox'])
-        if self.augmentation:
-            augmented = self.augmentation(image=image, keypoints=np.expand_dims(pos_gt,0), bboxes=np.expand_dims(bbox_pref,0))
-            image = augmented["image"]
-            pos_gt = augmented['keypoints'][0]
-            bbox_pref = augmented['bboxes'][0].astype(np.int32)
-
-        image = cv2.cvtColor(image,cv2.COLOR_BGR2RGB)
-        if self.random_crop:
-            image, bbox, side = self.random_square_crop(image, pos_gt, ref_bbox=bbox_pref)
-        else:
-            image, bbox, side = self.square_crop(image, pos_gt, bbox_pref)
-        image = cv2.resize(image,(self.input_size, self.input_size))
-        pos = np.array([self.input_size/side, self.input_size/side])*(pos_gt - bbox[0:2])
-
-        image = image / 255.0
-        image = self.transform({'image': image})['image']
-        image = torch.from_numpy(image)
-                
-        return image, torch.from_numpy(pos.astype(np.float32)).clone()
-    
-
-    

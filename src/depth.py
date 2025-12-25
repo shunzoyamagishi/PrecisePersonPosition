@@ -106,10 +106,10 @@ class DepthFeatureExtractor(DepthAnythingV2):
     @torch.no_grad()
     def infer_image(self, raw_image, input_size=224):
         image, (h, w) = self.image2tensor(raw_image, input_size)
-        
+        image = image.to(self.device)
         _, depth = self.forward(image)
         
-        depth = F.interpolate(depth[:, None], (h, w), mode="bilinear", align_corners=True)[0, 0]
+        depth = F.interpolate(depth, (h, w), mode="bilinear", align_corners=True)[0, 0]
         
         return depth.cpu().numpy()
     

@@ -45,9 +45,9 @@ def train_full(
     # pretrained model
     pretrain_model = cfg.get("pretrain_model") if (cfg.get("pretrain_model") and os.path.isfile(cfg.get("pretrain_model"))) else None
     # Augmentation
-    augmentation = create_augmentation() 
+    augmentation = create_augmentation() if (cfg.get("augmentation") and bool(cfg.get("augmentation"))) else None 
   
-    loss_function = KLDivLoss(std=float(cfg["heatmapstd"]))
+    loss_function = KLDivLoss()
     
     logger = setup_logger(save_dir)
     logger.info("Logger initialized.")
@@ -75,12 +75,11 @@ def train_full(
     #     p.requires_grad_(False)
     
     # model
-    model = SwinTransformerHead(in_size=input_size, in_channel=depthmodel_configs['vits']['features'], out_channel=1, device=DEVICE1)
+    model = SwinTransformerHead(in_size=input_size, in_channel=depthmodel_configs['vits']['features'], out_channel=2, device=DEVICE1)
     model = model.to(DEVICE1) 
     logger.info(f"Model: model({depthmodel_configs['vits']['features']}x{input_size}x{input_size})_{cfg["model"]}")
 
     # optimizer
-    # optimizer = optim.AdamW(model.parameters(), lr=0.001)
     optimizer = AdamWScheduleFree(model.parameters())
 
     start_epoch = 0
@@ -102,7 +101,7 @@ def train_full(
         model.train()
         optimizer.eval()
         with torch.no_grad():
-            for (images, pos) in tqdm(itertools.islice(train_loader, 50), total=50, desc="Calibration"):
+            for (images, _, _, _) in tqdm(itertools.islice(train_loader, 50), total=50, desc="Calibration"):
             # for batch in itertools.islice(train_loader, 50):
                 images = images.to(DEVICE2)
                 feature, _ = depth_model(images)
@@ -117,17 +116,23 @@ def train_full(
         optimizer.train()
         running_loss = 0.0
 
-        for batch, (images, pos) in enumerate(tqdm(train_loader, desc=f"Train : Epoch {epoch + 1}/{epochs}", unit="batch")):
+        # if best_train_loss < 3e-4:
+        if epoch == epochs-2:
+            train_dataset.random_crop = False
+
+        for batch, (images, _, heatmap, _) in enumerate(tqdm(train_loader, desc=f"Train : Epoch {epoch + 1}/{epochs}", unit="batch")):
             images = images.to(DEVICE2)
             # with torch.no_grad():
             with torch.inference_mode(): 
                 feature, _ = depth_model(images)
             feature = feature.to(DEVICE1)
-            pos = pos.to(DEVICE1)
+            # pos = pos.to(DEVICE1)
+            heatmap = heatmap.to(DEVICE1)
             optimizer.zero_grad()
             
             outputs = model(feature)
-            loss = loss_function(outputs, pos)
+            # loss = loss_function(outputs, pos)
+            loss = loss_function(outputs, heatmap)
             loss.backward()
             optimizer.step()
             
@@ -195,14 +200,7 @@ def load_config(config_path:str):
     
 
 def create_augmentation():
-    aug = A.Compose([        
-        A.Affine(
-            scale=(0.9,1.1),
-            translate_percent=(-0.05,0.05),
-            rotate=(-10,10),
-            shear=(-5,5),
-            p=0.3
-        ),
+    aug = A.ReplayCompose([        
         A.HorizontalFlip(p=0.5)
     ],
     keypoint_params=A.KeypointParams(format='xy', remove_invisible=False),
@@ -222,7 +220,7 @@ if __name__ == "__main__":
     cfg = load_config(args.config)
 
     # モデル保存フォルダ
-    save_dir = os.path.join("trains_depth", datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
+    save_dir = os.path.join("trains_dual", datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
     os.makedirs(save_dir, exist_ok=True)
     with open(os.path.join(save_dir, "config.yaml"), "w", encoding="utf-8") as f:
         yaml.safe_dump(cfg, f)

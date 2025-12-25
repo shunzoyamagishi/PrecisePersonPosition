@@ -7,7 +7,7 @@ import argparse
 from tqdm import tqdm
 from datetime import datetime
 from torch import optim
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, random_split
 from torch.utils.tensorboard import SummaryWriter
 import albumentations as A
 from schedulefree import AdamWScheduleFree
@@ -15,7 +15,7 @@ import itertools
 
 from src.model import SwinTransformerHead
 from src.loss import KLDivLoss
-from src.dataloader import DepthDataset
+from src.dataloader import PersonPositionDataset
 from src.depth import DepthFeatureExtractor
 
 # DEVICE1 = (
@@ -49,7 +49,7 @@ def train(
     augmentation = create_augmentation()
     # augmentation = None
   
-    loss_function = KLDivLoss(std=float(cfg["heatmapstd"]))
+    loss_function = KLDivLoss()
     
     logger = setup_logger(save_dir)
     logger.info("Logger initialized.")
@@ -57,9 +57,11 @@ def train(
     writer = SummaryWriter(log_dir=save_dir)
     
     logger.info("Loading Dataset...")
-    train_dataset = DepthDataset("data/train", input_size=input_size, augmentation=augmentation)
+    dataset = PersonPositionDataset("data/train", input_size=input_size, augmentation=augmentation)
+    train_size = int(0.8 * len(dataset))
+    val_size   = len(dataset) - train_size
+    train_dataset, valid_dataset = random_split(dataset, [train_size, val_size])
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    valid_dataset = DepthDataset("data/val", input_size=input_size)
     valid_loader = DataLoader(valid_dataset, batch_size=batch_size, shuffle=False)
 
     # Depth Model
@@ -74,19 +76,17 @@ def train(
     
     depth_model.load_state_dict(torch.load(f'Depth_Anything_V2/checkpoints/depth_anything_v2_{encoder}.pth', map_location='cpu'))
     depth_model = depth_model.to(DEVICE2).eval()
-    # for p in depth_model.parameters():
-    #     p.requires_grad_(False)
     
     # model
-    model = SwinTransformerHead(in_size=input_size, in_channel=depthmodel_configs['vits']['features'], out_channel=1, device=DEVICE1)
+    model = SwinTransformerHead(in_size=input_size, in_channel=depthmodel_configs['vits']['features'], out_channel=2, device=DEVICE1)
     model = model.to(DEVICE1) 
     logger.info(f"Model: model({depthmodel_configs['vits']['features']}x{input_size}x{input_size})_{cfg["model"]}")
 
     # optimizer
-    optimizer = optim.AdamW(model.parameters(), lr=0.001)
-    # optimizer = AdamWScheduleFree(model.parameters())
+    optimizer = AdamWScheduleFree(model.parameters())
 
     start_epoch = 0
+    best_train_loss = float("inf")
     best_val_loss = float("inf")
                              
     if pretrain_model is not None and os.path.isfile(pretrain_model):
@@ -94,9 +94,8 @@ def train(
         #model.load_state_dict(torch.load(pretrain_model, weights_only=True))
         model.load_state_dict(ckpt["model"]) 
         optimizer.load_state_dict(ckpt["optimizer"]) 
-        start_epoch = ckpt.get("epoch", -1) + 1
+        start_epoch = ckpt.get("epoch", -1) + 1        
         best_train_loss = ckpt.get("best_train", float("inf"))
-        best_val_loss = ckpt.get("best_val", float("inf"))
         logger.info(f"Loaded pretrained model: {pretrain_model}")
 
     best_model_weights = None
@@ -106,30 +105,38 @@ def train(
         model.train()
         optimizer.eval()
         with torch.no_grad():
-            for batch in tqdm(itertools.islice(train_loader, 50), total=50, desc="Calibration"):
-                model(batch)
+            for (images, pos, _, _) in tqdm(itertools.islice(train_loader, 50), total=50, desc="Calibration"):
+            # for batch in tqdm(itertools.islice(train_loader, 50), total=50, desc="Calibration"):
+                images = images.to(DEVICE2)
+                feature, _ = depth_model(images)
+                feature = feature.to(DEVICE1)                
+                outputs = model(feature)
         model.eval()
         logger.info("Schedule-Free calibration done")
     
     
     for epoch in range(start_epoch,epochs):
         model.train()
+        optimizer.train()
         running_loss = 0.0
-        if best_train_loss < 2e-4:
+        # if best_train_loss < 2e-4:
+        if epoch == epochs-2:
             train_dataset.random_crop = False
             valid_dataset.random_crop = False
 
-        for batch, (images, pos) in enumerate(tqdm(train_loader, desc=f"Train : Epoch {epoch + 1}/{epochs}", unit="batch")):
+        for batch, (images, _, heatmap, _) in enumerate(tqdm(train_loader, desc=f"Train : Epoch {epoch + 1}/{epochs}", unit="batch")):
             images = images.to(DEVICE2)
             # with torch.no_grad():
             with torch.inference_mode(): 
                 feature, _ = depth_model(images)
             feature = feature.to(DEVICE1)
-            pos = pos.to(DEVICE1)
+            # pos = pos.to(DEVICE1)
+            heatmap = heatmap.to(DEVICE1)
             optimizer.zero_grad()
             
             outputs = model(feature)
-            loss = loss_function(outputs, pos)
+            # loss = loss_function(outputs, pos)
+            loss = loss_function(outputs, heatmap)
             loss.backward()
             optimizer.step()
             
@@ -139,24 +146,28 @@ def train(
         logger.info(f"Epoch [{epoch+1}/{epochs}], Train Loss: {avg_train_loss:.6f}")
         writer.add_scalar("Loss/Train", avg_train_loss, epoch+1)
 
+        if avg_train_loss < best_train_loss:
+            best_train_loss = avg_train_loss
+            logger.info(f"Best model updated (train_loss={best_train_loss:.6f})")
+
         # Validation
         model.eval()
         val_loss = 0.0
         with torch.inference_mode(): 
         # with torch.no_grad():
             # for images, pos in tqdm(valid_loader, desc="Validating"):
-            for batch, (images, pos) in enumerate(tqdm(valid_loader, desc=f"Validation : Epoch {epoch + 1}/{epochs}", unit="batch")):
+            for batch, (images, _, heatmap, _) in enumerate(tqdm(valid_loader, desc=f"Validation : Epoch {epoch + 1}/{epochs}", unit="batch")):
                 images = images.to(DEVICE2)
                 feature, _ = depth_model(images)
                 feature = feature.to(DEVICE1)
-                pos = pos.to(DEVICE1)
+                # pos = pos.to(DEVICE1)
+                heatmap = heatmap.to(DEVICE1)
                 outputs = model(feature)
-                val_loss += loss_function(outputs, pos).item()
+                val_loss += loss_function(outputs, heatmap).item()
 
         avg_val_loss = val_loss / len(valid_loader)
         logger.info(f"Validation Loss: {avg_val_loss:.6f}")
         writer.add_scalar("Loss/Validation", avg_val_loss, epoch+1)
-
         if avg_val_loss < best_val_loss:
             best_val_loss = avg_val_loss
             logger.info(f"Best model updated (val_loss={best_val_loss:.6f})")
@@ -216,14 +227,7 @@ def load_config(config_path:str):
     
 
 def create_augmentation():
-    aug = A.Compose([        
-        A.Affine(
-            scale=(0.9,1.1),
-            translate_percent=(-0.05,0.05),
-            rotate=(-10,10),
-            shear=(-5,5),
-            p=0.3
-        ),
+    aug = A.ReplayCompose([        
         A.HorizontalFlip(p=0.5)
     ],
     keypoint_params=A.KeypointParams(format='xy', remove_invisible=False),
@@ -241,7 +245,7 @@ if __name__ == "__main__":
     cfg = load_config(args.config)
 
     # モデル保存フォルダ
-    save_dir = os.path.join("trains_depth", datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
+    save_dir = os.path.join("trains_dual", datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
     os.makedirs(save_dir, exist_ok=True)
     with open(os.path.join(save_dir, "config.yaml"), "w", encoding="utf-8") as f:
         yaml.safe_dump(cfg, f)

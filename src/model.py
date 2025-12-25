@@ -32,8 +32,8 @@ class SwinTransformerHead(nn.Module):
 
         self.head = nn.Sequential(
             torchvision.ops.misc.Permute(dims=[0,3,1,2]),
-            nn.ConvTranspose2d(in_channels=96*8, out_channels=1, kernel_size=(8,8), stride=(8,8)),
-            nn.BatchNorm2d(num_features=1)
+            nn.ConvTranspose2d(in_channels=96*8, out_channels=out_channel, kernel_size=(8,8), stride=(8,8)),
+            nn.BatchNorm2d(num_features=out_channel)
         )
 
         self.device = device
@@ -93,7 +93,7 @@ class PositionEstimator(nn.Module):
         }
         encoder = cfg["DepthAnythingV2_encoder"]
         self.depth_model = DepthFeatureExtractor(**depthmodel_configs[encoder], device=self.DEVICE)
-        self.head = SwinTransformerHead(in_size=self.in_size, in_channel=depthmodel_configs['vits']['features'], out_channel=1, device=self.DEVICE)
+        self.head = SwinTransformerHead(in_size=self.in_size, in_channel=depthmodel_configs['vits']['features'], out_channel=2, device=self.DEVICE)
 
         if os.path.isfile(f'Depth_Anything_V2/checkpoints/depth_anything_v2_{encoder}.pth'):
             self.depth_model.load_state_dict(torch.load(f'Depth_Anything_V2/checkpoints/depth_anything_v2_{encoder}.pth', map_location='cpu'))
@@ -102,7 +102,7 @@ class PositionEstimator(nn.Module):
         if pretrain_path:
             self.head.load_state_dict(torch.load(pretrain_path, map_location='cpu')["model"]) 
         else:
-            print(f"Checkpoint {cfg["pretrain"]} is not found.")
+            print(f"Checkpoint {cfg.get("pretrain_model")} is not found.")
         
         self.depth_model = self.depth_model.to(DEVICE).eval()
         self.head = self.head.to(DEVICE).eval()
@@ -115,11 +115,62 @@ class PositionEstimator(nn.Module):
         return depth, pos
     
     @torch.inference_mode()
-    def reference(self, raw_image: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    def inference(self, raw_image: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         image, (h, w) = self.depth_model.image2tensor(raw_image, self.in_size)
         
         depth, pos = self.forward(image)
 
+        pos = pos[:,0:1] + torch.prod(pos, dim=1, keepdim=True)
+        pos = self.head.normalize_zscore(pos)
+        
+        depth = F.interpolate(depth, (h, w), mode="bilinear", align_corners=True)[0, 0]
+        pos = F.interpolate(pos, (h, w), mode="bilinear", align_corners=True)[0, 0]
+        
+        return depth.cpu().numpy(), pos.cpu().numpy()
+    
+
+class PositionEstimator_single(nn.Module):
+    def __init__(self, cfg:dict, DEVICE:str='cuda'):
+        super().__init__()
+        
+        pretrain_path = cfg.get("pretrain_model") if (cfg.get("pretrain_model") and os.path.isfile(cfg["pretrain_model"])) else None
+        
+        self.in_size = int(cfg["in_size"])
+        self.DEVICE = DEVICE 
+
+        depthmodel_configs = {
+            'vits': {'encoder': 'vits', 'features': 64, 'out_channels': [48, 96, 192, 384]},
+            'vitb': {'encoder': 'vitb', 'features': 128, 'out_channels': [96, 192, 384, 768]},
+            'vitl': {'encoder': 'vitl', 'features': 256, 'out_channels': [256, 512, 1024, 1024]},
+            'vitg': {'encoder': 'vitg', 'features': 384, 'out_channels': [1536, 1536, 1536, 1536]}
+        }
+        encoder = cfg["DepthAnythingV2_encoder"]
+        self.depth_model = DepthFeatureExtractor(**depthmodel_configs[encoder], device=self.DEVICE)
+        self.head = SwinTransformerHead(in_size=self.in_size, in_channel=depthmodel_configs['vits']['features'], out_channel=1, device=self.DEVICE)
+
+        if os.path.isfile(f'Depth_Anything_V2/checkpoints/depth_anything_v2_{encoder}.pth'):
+            self.depth_model.load_state_dict(torch.load(f'Depth_Anything_V2/checkpoints/depth_anything_v2_{encoder}.pth', map_location='cpu'))
+        else:
+            print(f"Depth Anything V2 Checkpoint depth_anything_v2_{encoder}.pth is not found.")
+        if pretrain_path:
+            self.head.load_state_dict(torch.load(pretrain_path, map_location='cpu')["model"]) 
+        else:
+            print(f"Checkpoint {cfg.get("pretrain_model")} is not found.")
+        
+        self.depth_model = self.depth_model.to(DEVICE).eval()
+        self.head = self.head.to(DEVICE).eval()
+
+    def forward(self, x:torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        x = x.to(self.DEVICE)
+        feature, depth = self.depth_model.forward(x)
+        pos = self.head.forward(feature)
+        return depth, pos
+    
+    @torch.inference_mode()
+    def inference(self, raw_image: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        image, (h, w) = self.depth_model.image2tensor(raw_image, self.in_size)
+        
+        depth, pos = self.forward(image)
         pos = self.head.normalize_zscore(pos)
         
         depth = F.interpolate(depth, (h, w), mode="bilinear", align_corners=True)[0, 0]
