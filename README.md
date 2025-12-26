@@ -78,7 +78,6 @@ Structure of data.json:
       "pos": [
       ]
     },
-    
   ],
   "Camera Parameter": {
     "Perspective Projection Matrix": [

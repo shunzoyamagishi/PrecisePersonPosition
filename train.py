@@ -238,9 +238,10 @@ if __name__ == "__main__":
     assert os.path.exists(args.config), f"config {args.config} is not exists."
     
     cfg = load_config(args.config)
+    cfg["dataset"] = "train"
 
     # モデル保存フォルダ
-    save_dir = os.path.join("trains_dual", datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
+    save_dir = os.path.join("trains", datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
     os.makedirs(save_dir, exist_ok=True)
     with open(os.path.join(save_dir, "config.yaml"), "w", encoding="utf-8") as f:
         yaml.safe_dump(cfg, f)
