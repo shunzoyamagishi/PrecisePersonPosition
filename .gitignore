@@ -7,7 +7,8 @@ models/
 src/utils(old).py
 data/
 data_old/
-debug/
+src/src_old/
+src/__pycache__/
 inference/
 output.png
 yolo11n.pt
@@ -17,3 +18,5 @@ checkpoints/
 trains_dual/
 datamaker/
 *.ipynb
+src/__pycache__/
+config/depth_continue.yaml

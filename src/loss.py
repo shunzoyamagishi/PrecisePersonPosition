@@ -50,63 +50,6 @@ class SoftArgmaxLoss(nn.Module):
         return coords
 
 
-class KLDivLoss_old(nn.Module):
-    def __init__(self, std:float=5.0):
-        super().__init__()
-        self.gausianstd = std
-
-    def forward(self, pred:torch.Tensor, targets:torch.Tensor,eps:float=1e-6) -> torch.Tensor:
-        B = pred.size(0)
-        target_map = self.generate_gaussian_heatmap(pred, targets)
-
-        # reshape
-        pred = pred.view(B, 1, -1)
-        target_map = target_map.view(B, 1, -1)
-
-        # log_softmax
-        pred_logsoftmax = F.log_softmax(pred, dim=2)
-
-        # 正規化して確率分布に
-        target_probs = F.softmax(target_map, dim=2) + eps
-        target_probs = target_probs / target_probs.sum(dim=2, keepdim=True)
-
-
-        kl_loss = nn.KLDivLoss(reduction="batchmean")
-        loss = kl_loss(pred_logsoftmax, target_probs)
-        return loss
-    
-    
-    def generate_gaussian_heatmap(self, pred: torch.Tensor, centers: torch.Tensor) -> torch.Tensor:
-        """
-        pred: [B, 1, H, W]
-        centers: [B, 2] (x, y)
-        Returns:
-            heatmap: [B, 1, H, W]
-        """
-        B, _, H, W = pred.shape
-        sigma = self.gausianstd
-
-        # (H, W) grid
-        yy, xx = torch.meshgrid(
-            torch.arange(H, device=pred.device).float(),
-            torch.arange(W, device=pred.device).float(),
-            indexing="ij"
-        )
-        # xx: [H, W], yy: [H, W]
-
-        # output heatmap tensor
-        heatmap = torch.zeros((B, 1, H, W), dtype=torch.float32, device=pred.device)
-
-        for i in range(B):
-            x0, y0 = centers[i].float()
-            # Gaussian formula over the grid
-            distance_sq = (xx - x0)**2 + (yy - y0)**2
-            gaussian = torch.exp(-distance_sq / (2 * sigma**2))
-            heatmap[i, 0] = gaussian
-
-        return heatmap
-
-
 class CrossEntropyLoss(nn.Module):
     def __init__(self, std: float = 5.0, alpha: float = 10.0):
         super().__init__()
