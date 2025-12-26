@@ -5,7 +5,7 @@ from torchvision import transforms
 import torch
 import torch.nn as nn
 
-from model_simple import SwinTransformerUnet_T, SwinTransformerUnet_S
+from src_old.model_simple import SwinTransformerUnet_T, SwinTransformerUnet_S
 import argparse
 import os
 import re

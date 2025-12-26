@@ -339,8 +339,7 @@ class PersonPositionDataset_Full(PersonPositionDataset):
         ])
         self.samples = [] 
         
-        # for base_folder in ["train", "val", "test"]:
-        for base_folder in ["train", "val"]:
+        for base_folder in ["train", "val", "test"]:
             base_path = os.path.join(root_dir, base_folder)
             if not os.path.isdir(base_path):
                 continue

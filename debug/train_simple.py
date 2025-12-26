@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 import albumentations as A
 
-from src.model_simple import SwinTransformerUnet_S, SwinTransformerEncoder
+from src_old.model_simple import SwinTransformerUnet_S, SwinTransformerEncoder
 from src.loss import KLDivLoss, CrossEntropyLoss, MSELoss
 from src.dataloader import FrameDataset
 
