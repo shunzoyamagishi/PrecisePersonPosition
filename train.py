@@ -25,6 +25,7 @@ def train(
 ):
     # config 
     input_size = int(cfg["in_size"])
+    target_std = float(cfg["targetstd"])
     batch_size = int(cfg["batch"])
     epochs = int(cfg["epoch"])
     DEVICE1 = f"cuda:{int(cfg["DEVICE1"])}"
@@ -46,7 +47,7 @@ def train(
     writer = SummaryWriter(log_dir=save_dir)
     
     logger.info("Loading Dataset...")
-    dataset = PersonPositionDataset("data/train", input_size=input_size, augmentation=augmentation)
+    dataset = PersonPositionDataset("data/train", input_size=input_size, target_std=target_std, augmentation=augmentation)
     train_size = int(0.8 * len(dataset))
     val_size   = len(dataset) - train_size
     train_dataset, valid_dataset = random_split(dataset, [train_size, val_size], generator=generator)

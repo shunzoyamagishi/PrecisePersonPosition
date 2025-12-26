@@ -12,13 +12,14 @@ from Depth_Anything_V2.depth_anything_v2.util.transform import Resize, Normalize
    
     
 class PersonPositionDataset(Dataset):
-    def __init__(self, root_dir:str, input_size:int=224, augmentation:Any=None, random_crop:bool=True):
+    def __init__(self, root_dir:str, input_size:int=224, target_std:float=5.0, augmentation:Any=None, random_crop:bool=True):
         """
         root_dir: 動画ごとのフォルダが並んでいるルートディレクトリ
         transform: 画像に適用する変換
         """
         self.root_dir = root_dir
         self.input_size = input_size
+        self.target_std = target_std
         self.augmentation = augmentation
         self.random_crop = random_crop
         self.transform = transforms.Compose([
@@ -76,8 +77,8 @@ class PersonPositionDataset(Dataset):
             )
             if flip_applied:
                 Hx = np.array([[-1, 0, image.shape[1] - 1],
-                            [ 0, 1, 0],
-                            [ 0, 0, 1]], dtype=float)
+                               [ 0, 1, 0],
+                               [ 0, 0, 1]], dtype=float)
                 P = Hx @ P
 
         image = cv2.cvtColor(image,cv2.COLOR_BGR2RGB)
@@ -91,16 +92,17 @@ class PersonPositionDataset(Dataset):
         P = np.array([[self.input_size/side,0,0],[0,self.input_size/side,0],[0,0,1]])@np.array([[1,0,-bbox[0]],[0,1,-bbox[1]],[0,0,1]])@P
 
         # heatmap in image coordinate
-        hmap1 = self.generate_gaussian_heatmap(shape=(self.input_size,self.input_size), centers=pos, sigma=5.0)
+        hmap1 = self.generate_gaussian_heatmap(shape=(self.input_size,self.input_size), centers=pos, sigma=self.target_std)
         
         # heatmap in perspective
+        gaussianmap_size = 400
         H_field2image = P[:,[0,1,3]]
-        Ht = np.array([[1/200, 0, -1], [0, 1/200, -1], [0,0,1]])
-        r = self.local_radius_for_target_area(H_field2image@Ht, pos)
+        H_gaussian2field = np.array([[2/gaussianmap_size, 0, -1], [0, 2/gaussianmap_size, -1], [0,0,1]], dtype=np.float32) 
+        r = self.local_radius_for_target_area(H_field2image@H_gaussian2field, center=(0,0), A_tar=self.target_std*self.target_std*np.pi)
 
-        hmap2 = self.generate_gaussian_heatmap(sigma=min(r,100))
+        hmap2 = self.generate_gaussian_heatmap(shape=(gaussianmap_size,gaussianmap_size), sigma=r)
         hmap2 = cv2.warpPerspective(
-            hmap2, H_field2image@Ht, (self.input_size,self.input_size),
+            hmap2, H_field2image@H_gaussian2field, (self.input_size,self.input_size),
             flags=cv2.INTER_LINEAR,
             borderMode=cv2.BORDER_CONSTANT,
             borderValue=(0,0,0)
@@ -271,16 +273,12 @@ class PersonPositionDataset(Dataset):
             np.arange(W, dtype=np.float32),
             indexing="ij"
         )
-
-        heatmap = np.zeros((H, W), dtype=np.float32)
-
         
         x0, y0 = centers.astype(np.float32)
         distance_sq = (xx - x0) ** 2 + (yy - y0) ** 2
         gaussian = np.exp(-distance_sq / (2 * sigma ** 2))
-        heatmap = gaussian
 
-        return heatmap
+        return gaussian
     
     def local_radius_for_target_area(self, H: np.ndarray, center:tuple[float,float]=(200,200), A_tar:float=100.0) -> float:
         """
@@ -317,9 +315,10 @@ class PersonPositionDataset(Dataset):
     
 
 class PersonPositionDataset_Full(PersonPositionDataset):
-    def __init__(self, root_dir:str, input_size:int=224, augmentation:Any=None, random_crop:bool=True, heatmap_perspectivetransform:bool=False):
+    def __init__(self, root_dir:str, input_size:int=224, target_std:float=5.0, augmentation:Any=None, random_crop:bool=True, heatmap_perspectivetransform:bool=False):
         self.root_dir = root_dir
         self.input_size = input_size
+        self.target_std = target_std
         self.augmentation = augmentation
         self.random_crop = random_crop
         self.heatmap_perspectivetransform = heatmap_perspectivetransform

@@ -3,7 +3,7 @@ epoch: 10
 batch: 2
 model: "SwinHead"
 DepthAnythingV2_encoder: "vits"
-heatmapstd: 5
+targetstd: 5.0
 pretrain_model: "checkpoints/depthhead_full.pt"
 augmentation: True
 DEVICE1: 0
