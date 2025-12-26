@@ -96,7 +96,7 @@ class PersonPositionDataset(Dataset):
         # heatmap in perspective
         H_field2image = P[:,[0,1,3]]
         Ht = np.array([[1/200, 0, -1], [0, 1/200, -1], [0,0,1]])
-        r = self.local_radius_for_target_area(H_field2image@Ht)
+        r = self.local_radius_for_target_area(H_field2image@Ht, pos)
 
         hmap2 = self.generate_gaussian_heatmap(sigma=min(r,100))
         hmap2 = cv2.warpPerspective(
