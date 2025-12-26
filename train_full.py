@@ -87,7 +87,6 @@ def train_full(
                              
     if pretrain_model is not None and os.path.isfile(pretrain_model):
         ckpt = torch.load(pretrain_model, map_location='cpu')
-        #model.load_state_dict(torch.load(pretrain_model, weights_only=True))
         model.load_state_dict(ckpt["model"]) 
         optimizer.load_state_dict(ckpt["optimizer"]) 
         start_epoch = ckpt.get("epoch", -1) + 1        
@@ -102,7 +101,6 @@ def train_full(
         optimizer.eval()
         with torch.no_grad():
             for (images, _, _, _) in tqdm(itertools.islice(train_loader, 50), total=50, desc="Calibration"):
-            # for batch in itertools.islice(train_loader, 50):
                 images = images.to(DEVICE2)
                 feature, _ = depth_model(images)
                 feature = feature.to(DEVICE1)                
@@ -122,16 +120,13 @@ def train_full(
 
         for batch, (images, _, heatmap, _) in enumerate(tqdm(train_loader, desc=f"Train : Epoch {epoch + 1}/{epochs}", unit="batch")):
             images = images.to(DEVICE2)
-            # with torch.no_grad():
             with torch.inference_mode(): 
                 feature, _ = depth_model(images)
             feature = feature.to(DEVICE1)
-            # pos = pos.to(DEVICE1)
             heatmap = heatmap.to(DEVICE1)
             optimizer.zero_grad()
             
             outputs = model(feature)
-            # loss = loss_function(outputs, pos)
             loss = loss_function(outputs, heatmap)
             loss.backward()
             optimizer.step()

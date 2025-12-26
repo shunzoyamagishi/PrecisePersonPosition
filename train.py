@@ -45,9 +45,11 @@ def train(
     # pretrained model
     pretrain_model = cfg.get("pretrain_model") if (cfg.get("pretrain_model") and os.path.isfile(cfg.get("pretrain_model"))) else None
     
+    seed = 42
+    generator = torch.Generator().manual_seed(seed)
+
     # Augmentation
     augmentation = create_augmentation()
-    # augmentation = None
   
     loss_function = KLDivLoss()
     
@@ -60,7 +62,7 @@ def train(
     dataset = PersonPositionDataset("data/train", input_size=input_size, augmentation=augmentation)
     train_size = int(0.8 * len(dataset))
     val_size   = len(dataset) - train_size
-    train_dataset, valid_dataset = random_split(dataset, [train_size, val_size])
+    train_dataset, valid_dataset = random_split(dataset, [train_size, val_size], generator=generator)
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     valid_loader = DataLoader(valid_dataset, batch_size=batch_size, shuffle=False)
 
@@ -91,7 +93,6 @@ def train(
                              
     if pretrain_model is not None and os.path.isfile(pretrain_model):
         ckpt = torch.load(pretrain_model, map_location='cpu')
-        #model.load_state_dict(torch.load(pretrain_model, weights_only=True))
         model.load_state_dict(ckpt["model"]) 
         optimizer.load_state_dict(ckpt["optimizer"]) 
         start_epoch = ckpt.get("epoch", -1) + 1        
@@ -105,8 +106,7 @@ def train(
         model.train()
         optimizer.eval()
         with torch.no_grad():
-            for (images, pos, _, _) in tqdm(itertools.islice(train_loader, 50), total=50, desc="Calibration"):
-            # for batch in tqdm(itertools.islice(train_loader, 50), total=50, desc="Calibration"):
+            for (images, _, _, _) in tqdm(itertools.islice(train_loader, 50), total=50, desc="Calibration"):
                 images = images.to(DEVICE2)
                 feature, _ = depth_model(images)
                 feature = feature.to(DEVICE1)                
@@ -135,7 +135,6 @@ def train(
             optimizer.zero_grad()
             
             outputs = model(feature)
-            # loss = loss_function(outputs, pos)
             loss = loss_function(outputs, heatmap)
             loss.backward()
             optimizer.step()
@@ -154,13 +153,10 @@ def train(
         model.eval()
         val_loss = 0.0
         with torch.inference_mode(): 
-        # with torch.no_grad():
-            # for images, pos in tqdm(valid_loader, desc="Validating"):
             for batch, (images, _, heatmap, _) in enumerate(tqdm(valid_loader, desc=f"Validation : Epoch {epoch + 1}/{epochs}", unit="batch")):
                 images = images.to(DEVICE2)
                 feature, _ = depth_model(images)
                 feature = feature.to(DEVICE1)
-                # pos = pos.to(DEVICE1)
                 heatmap = heatmap.to(DEVICE1)
                 outputs = model(feature)
                 val_loss += loss_function(outputs, heatmap).item()
@@ -172,7 +168,6 @@ def train(
             best_val_loss = avg_val_loss
             logger.info(f"Best model updated (val_loss={best_val_loss:.6f})")
 
-        # best_model_weights = copy.deepcopy(model.state_dict())
         ckpt = {
             "model": copy.deepcopy(model.state_dict()),
             "optimizer": optimizer.state_dict(),   # ← AdamWのm/vなどが入る

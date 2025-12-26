@@ -6,11 +6,8 @@ trains_dual/
 models/
 src/utils(old).py
 data/
-data_old/
-src/src_old/
 src/__pycache__/
 inference/
-output.png
 yolo11n.pt
 config/simple.yaml
 example/
@@ -20,3 +17,4 @@ datamaker/
 *.ipynb
 src/__pycache__/
 config/depth_continue.yaml
+__pycache__/
