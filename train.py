@@ -17,19 +17,6 @@ from src.model import SwinTransformerHead
 from src.loss import KLDivLoss
 from src.dataloader import PersonPositionDataset
 from src.depth import DepthFeatureExtractor
-
-# DEVICE1 = (
-#     "cuda:0" if torch.cuda.is_available() else
-#     "mps"    if torch.backends.mps.is_available() else
-#     "cpu"
-# )
-
-# DEVICE2 = (
-#     "cuda:1" if torch.cuda.is_available() and torch.cuda.device_count() > 1 else
-#     "cuda:0" if torch.cuda.is_available() else
-#     "mps"    if torch.backends.mps.is_available() else
-#     "cpu"
-# )
     
 
 def train(
