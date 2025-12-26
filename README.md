@@ -71,7 +71,14 @@ Structure of data.json:
       "pos": [
       ]
     },
-    ...
+    {
+      "img_name": "Image Sequence_000_0001.jpg",
+      "bbox": [
+      ],
+      "pos": [
+      ]
+    },
+    
   ],
   "Camera Parameter": {
     "Perspective Projection Matrix": [
