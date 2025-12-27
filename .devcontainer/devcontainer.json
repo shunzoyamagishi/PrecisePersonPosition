@@ -9,13 +9,13 @@
 	"runArgs": ["--gpus", "all"],
 
 	// Features to add to the dev container. More info: https://containers.dev/features.
-	// "features": {},
+	// "features": {}
 
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
 	// "forwardPorts": [],
 
 	// Use 'postCreateCommand' to run commands after the container is created.
-	"postCreateCommand": "sudo apt-get update && sudo apt-get install -y libgl1 libglib2.0-0 && python -m pip install --upgrade pip && pip3 install --user -r Depth_Anything_V2/requirements.txt && pip3 install --user -r requirements.txt"
+	"postCreateCommand": "sudo apt-get update && sudo apt-get install -y libgl1 libglib2.0-0 && sudo apt install -y tmux && python -m pip install --upgrade pip && pip3 install --user -r Depth_Anything_V2/requirements.txt && pip3 install --user -r requirements.txt"
 	// Configure tool-specific properties.
 	// "customizations": {},
 
