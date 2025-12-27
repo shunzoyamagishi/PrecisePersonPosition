@@ -106,7 +106,7 @@ def train_full(
 
         for batch, (images, _, heatmap, _) in enumerate(tqdm(train_loader, desc=f"Train : Epoch {epoch + 1}/{epochs}", unit="batch")):
             images = images.to(DEVICE2)
-            with torch.inference_mode(): 
+            with torch.no_grad(): 
                 feature, _ = depth_model(images)
             feature = feature.to(DEVICE1)
             heatmap = heatmap.to(DEVICE1)
