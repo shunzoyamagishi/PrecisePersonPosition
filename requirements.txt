@@ -1,4 +1,5 @@
 albumentations
+ipykernel
 schedulefree
 tensorboard
 ultralytics
