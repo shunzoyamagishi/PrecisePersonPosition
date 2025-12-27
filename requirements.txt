@@ -1,2 +1,4 @@
+albumentations
+schedulefree
+tensorboard
 ultralytics
-kornia

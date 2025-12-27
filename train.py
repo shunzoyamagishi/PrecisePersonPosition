@@ -2,14 +2,12 @@ import os
 import copy
 import yaml
 import torch
-import logging
 import argparse
 from tqdm import tqdm
 from datetime import datetime
-from torch import optim
 from torch.utils.data import DataLoader, random_split
 from torch.utils.tensorboard import SummaryWriter
-import albumentations as A
+
 from schedulefree import AdamWScheduleFree
 import itertools
 
@@ -17,6 +15,8 @@ from src.model import SwinTransformerHead
 from src.loss import KLDivLoss
 from src.dataloader import PersonPositionDataset
 from src.depth import DepthFeatureExtractor
+from src.augumentation import create_augmentation
+from src.utils import load_config, setup_logger
     
 
 def train(
@@ -174,49 +174,6 @@ def train(
 
     writer.close()
 
-
-def setup_logger(log_dir: str):
-    os.makedirs(log_dir, exist_ok=True)
-    log_file = os.path.join(log_dir, "train.log")
-    
-    logger = logging.getLogger()
-    logger.setLevel(logging.INFO)
-
-    # コンソール用ハンドラ
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(logging.INFO)
-    formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
-    console_handler.setFormatter(formatter)
-
-    # ファイル用ハンドラ
-    file_handler = logging.FileHandler(log_file, mode="w", encoding="utf-8")
-    file_handler.setLevel(logging.INFO)
-    file_handler.setFormatter(formatter)
-
-    # 既存のハンドラを消す（重複防止）
-    if logger.hasHandlers():
-        logger.handlers.clear()
-    
-    # ハンドラを登録
-    logger.addHandler(console_handler)
-    logger.addHandler(file_handler)
-
-    return logger
-
-
-def load_config(config_path:str):
-    with open(config_path, "r") as f:
-        return yaml.safe_load(f)
-    
-
-def create_augmentation():
-    aug = A.ReplayCompose([        
-        A.HorizontalFlip(p=0.5)
-    ],
-    keypoint_params=A.KeypointParams(format='xy', remove_invisible=False),
-    bbox_params=A.BboxParams(format="pascal_voc")
-    )
-    return aug
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="学習コード")
