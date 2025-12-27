@@ -1,6 +1,6 @@
 in_size: 224
 epoch: 20
-batch: 16
+batch: 8
 model: "SwinHead"
 DepthAnythingV2_encoder: "vits"
 targetstd: 5.0
