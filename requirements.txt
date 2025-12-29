@@ -1,5 +1,7 @@
 albumentations
 ipykernel
 schedulefree
+supervision
 tensorboard
+transformers
 ultralytics
