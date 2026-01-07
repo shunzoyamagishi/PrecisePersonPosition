@@ -108,9 +108,9 @@ def train(
         optimizer.train()
         running_loss = 0.0
         # if best_train_loss < 2e-4:
-        if epoch == epochs-2:
-            train_dataset.random_crop = False
-            valid_dataset.random_crop = False
+        # if epoch == epochs-2:
+        #     train_dataset.random_crop = False
+        #     valid_dataset.random_crop = False
 
         for batch, (images, _, heatmap, _) in enumerate(tqdm(train_loader, desc=f"Train : Epoch {epoch + 1}/{epochs}", unit="batch")):
             images = images.to(DEVICE2)

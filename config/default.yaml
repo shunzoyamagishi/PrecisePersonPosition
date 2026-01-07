@@ -1,5 +1,5 @@
 in_size: 224
-epoch: 20
+epoch: 30
 batch: 8
 model: "SwinHead"
 DepthAnythingV2_encoder: "vits"
