@@ -6,9 +6,9 @@ This repository includes code that is **adapted from** [Depth-Anything-V2](https
 ```bash
 git clone https://github.com/shunzoyamagishi/PrecicePersonPosition.git && cd PrecicePersonPosition
 git clone https://github.com/DepthAnything/Depth-Anything-V2.git && cd Depth-Anything-V2
-pip install -r requirement.txt
+pip install -r requirements.txt
 cd .. && mv Depth-Anything-V2 Depth_Anything_V2
-pip install -r requirement.txt
+pip install -r requirements.txt
 ```
 - Download checkpoints from DepthAnythingV2 repogitory and put in "checkpoints" directory.
 - Refer to the [Depth-Anything-V2 repository](https://github.com/DepthAnything/Depth-Anything-V2), download the checkpoint file from that repository, and place it in checkpoint directory.
