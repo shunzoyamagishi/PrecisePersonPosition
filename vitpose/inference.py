@@ -37,6 +37,7 @@ def vitpose_inference(
     person_boxes = result["boxes"][result["labels"] == 0]
     person_boxes = person_boxes.cpu().numpy()
     person_boxes_xyxy = person_boxes.copy()
+    persons_boxes_scores = result["scores"][result["labels"] == 0].cpu().numpy()
 
     # Convert boxes from VOC (x1, y1, x2, y2) to COCO (x1, y1, w, h) format
     person_boxes[:, 2] = person_boxes[:, 2] - person_boxes[:, 0]
@@ -78,4 +79,4 @@ def vitpose_inference(
         key_points=key_points
     )
 
-    return key_points, person_boxes_xyxy, annotated_frame
+    return key_points, person_boxes_xyxy, persons_boxes_scores, annotated_frame
