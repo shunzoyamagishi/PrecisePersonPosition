@@ -39,11 +39,8 @@ def test(cfg:dict, save_dir:str):
         if detect is None:
             df.loc[len(df)] = [None, None, None, None, None, None, None, None]
         else:
-            bboxes_xyxy = detect['boxes'].detach().cpu().numpy()
-            bboxes_conf = detect['scores'].detach().cpu().numpy()
-
-            croped = crop_input(bboxes_xyxy, img.shape[0:2], pad=200)[np.argmax(bboxes_conf)]
-            bbox = bboxes_xyxy[np.argmax(bboxes_conf)]
+            croped = crop_input(detect.xyxy, img.shape[0:2], pad=200)[np.argmax(detect.confidence)]
+            bbox = detect.xyxy[np.argmax(detect.confidence)]
 
             input = img[croped[1]:croped[3], croped[0]:croped[2]]
             input = cv2.resize(input, (cfg['in_size'], (cfg['in_size'])))

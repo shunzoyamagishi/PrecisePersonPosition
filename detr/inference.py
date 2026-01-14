@@ -19,7 +19,7 @@ def detr_inference(
         person_model:RTDetrForObjectDetection,
         class_ids: Optional[Iterable[int]] = None,
         threshold: float = 0.3,
-    )->dict:
+    )->tuple[dict, Image]:
     if type(image) == np.ndarray:
         image = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
 
@@ -46,4 +46,17 @@ def detr_inference(
         for k in ["scores", "labels", "boxes"]:
             result[k] = result[k][keep]
 
-    return results
+    detections = sv.Detections.from_transformers(
+        transformers_results=result
+    )
+
+    box_annotator = sv.BoxAnnotator(
+        color=sv.Color.from_hex('#fcba03'),
+        thickness=1
+    )
+    annotated_frame = box_annotator.annotate(
+        scene=image.copy(), 
+        detections=detections
+    )
+
+    return detections, annotated_frame
