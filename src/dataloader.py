@@ -373,8 +373,8 @@ class TestDataset(PersonPositionDataset):
         item = self.samples[idx]
         image = cv2.imread(item['img_name'])
         pos_gt = np.array(item['pos'])
-        pose_kpt = np.array(item['ViTPose'])[:,0:2]
-        bbox_pref = np.array(item['bbox'])
+        pose_kpt = np.array(item['ViTPose'])[:,0:2] if item['ViTPose'] is not None else None
+        bbox_pref = np.array(item['bbox']) if item['bbox'] is not None else None
         P = np.array(item['PerspectiveProjectionMatrix'])
         if self.augmentation:
             augmented = self.augmentation(image=image, keypoints=np.expand_dims(pos_gt,0), bboxes=np.expand_dims(bbox_pref,0))
