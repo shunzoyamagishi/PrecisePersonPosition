@@ -1,5 +1,6 @@
 from transformers import AutoProcessor, RTDetrForObjectDetection, VitPoseForPoseEstimation
 from .inference import vitpose_inference
+from PIL import Image
 
 """
 This project uses ViTPose via Hugging Face Transformers.
@@ -26,7 +27,7 @@ class VitPosePipeline:
             device_map=device
         )
 
-    def __call__(self, image):
+    def __call__(self, image:Image)->dict:
         return vitpose_inference(
             image,
             self.person_image_processor,
