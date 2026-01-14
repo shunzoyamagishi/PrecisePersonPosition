@@ -28,7 +28,7 @@ VID_EXTS = {
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-def inference(path:str, cfg:dict):    
+def inference(path:str, cfg:dict, save_dir:str):    
     model = PositionEstimator(cfg=cfg, DEVICE=DEVICE)
     yolo = YOLO("yolo11n.pt").to(DEVICE)
 
@@ -41,7 +41,7 @@ def inference(path:str, cfg:dict):
     print("Position Estimation")
     for f, r in enumerate(results):
         start = time.time()
-        results[f].boxes.in_region = crop_input(r.boxes.xyxy, r.orig_img.shape[0:2], pad=200)
+        results[f].boxes.in_region = crop_input(r.boxes.xyxy.to("cpu").detach().numpy(), r.orig_img.shape[0:2], pad=200)
 
         pos = []
         for i, in_region in enumerate(r.boxes.in_region):
@@ -65,7 +65,7 @@ def inference(path:str, cfg:dict):
         height, width = results[0].orig_shape
         fourcc = cv2.VideoWriter_fourcc(*"mp4v")  # 出力形式 (mp4)
 
-        output_path = os.path.join("inference", f"{os.path.splitext(os.path.basename(path))[0]}.mp4")
+        output_path = os.path.join(save_dir, f"{os.path.splitext(os.path.basename(path))[0]}.mp4")
         out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
         for f, r in enumerate(results):
             frame = r.plot()
@@ -80,7 +80,7 @@ def inference(path:str, cfg:dict):
         print(f"Result has been saved to: {output_path}")
 
     elif is_image(path):
-        output_path = os.path.join("inference", f"{os.path.splitext(os.path.basename(path))[0]}.jpg")
+        output_path = os.path.join(save_dir, f"{os.path.splitext(os.path.basename(path))[0]}.jpg")
         frame = results[0].plot()
         for i in range(results[0].boxes.cls.shape[0]):
             pos = results[0].boxes.position[i].astype(np.int16)
@@ -116,7 +116,7 @@ if __name__ == "__main__":
 
     cfg = load_config(args.config)
 
-    if not os.path.isdir("inference"):
-        os.makedirs("inference")
+    if not os.path.isdir("runs/inference"):
+        os.makedirs("runs/inference")
 
-    inference(path=args.input_path, cfg=cfg)
+    inference(path=args.input_path, cfg=cfg, save_dir="runs/inference")
