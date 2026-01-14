@@ -106,7 +106,7 @@ def threshold_accuracy_series(s_pred: pd.Series, threshold: float=0.5) -> float:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="inferenceコード")
-    parser.add_argument("--config", default="config/default_inference.yaml", help="設定ファイルのパス")
+    parser.add_argument("--config", default="config/default_test.yaml", help="設定ファイルのパス")
     args = parser.parse_args()    
 
     assert os.path.exists(args.config), f"config {args.config} is not exists."

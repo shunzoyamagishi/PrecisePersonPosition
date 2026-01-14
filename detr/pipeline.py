@@ -14,7 +14,8 @@ Reference: Hugging Face Transformers – ViTPose Documentation
 class DeTRPipeline:
     def __init__(self, device="cuda"):
         self.person_image_processor = AutoProcessor.from_pretrained(
-            "PekingU/rtdetr_r50vd_coco_o365"
+            "PekingU/rtdetr_r50vd_coco_o365",
+            use_fast=True
         )
         self.person_model = RTDetrForObjectDetection.from_pretrained(
             "PekingU/rtdetr_r50vd_coco_o365",
