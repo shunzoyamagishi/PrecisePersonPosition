@@ -21,7 +21,7 @@ class DeTRPipeline:
             device_map=device
         )
 
-    def __call__(self, image:Image, class_ids: Optional[Iterable[int]] = None, threshold:float = 0.3)->dict:
+    def __call__(self, image:Image, class_ids:Optional[Iterable[int]] = None, threshold:float=0.3)->dict:
         return detr_inference(
             image,
             self.person_image_processor,
