@@ -37,7 +37,7 @@ def test(cfg:dict, save_dir:str):
 
         kpt, detect, _ = vitpose(img)
         if detect is None:
-            df.loc[len(df)] = [np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan]
+            df.loc[len(df)] = [np.nan] * 8
         else:
             croped = crop_input(detect.xyxy, img.shape[0:2], pad=200)[np.argmax(detect.confidence)]
             bbox = detect.xyxy[np.argmax(detect.confidence)]
