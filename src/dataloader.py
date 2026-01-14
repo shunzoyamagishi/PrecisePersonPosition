@@ -358,3 +358,29 @@ class PersonPositionDataset_Full(PersonPositionDataset):
                         img['PerspectiveProjectionMatrix'] = data["Camera Parameter"]["Perspective Projection Matrix"]
 
                     self.samples += data['imgs']
+
+
+class TestDataset(PersonPositionDataset):
+    def __init__(self, root_dir:str, input_size:int=224, augmentation:Any=None, random_crop:bool=False):
+        super(TestDataset,self).__init__(root_dir=root_dir, input_size=input_size, augmentation=augmentation, random_crop=random_crop)
+
+
+    def __len__(self):
+        return len(self.samples)
+    
+
+    def __getitem__(self, idx)->tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        item = self.samples[idx]
+        image = cv2.imread(item['img_name'])
+        pos_gt = np.array(item['pos'])
+        pose_kpt = np.array(item['ViTPose'])[:,0:2]
+        bbox_pref = np.array(item['bbox'])
+        P = np.array(item['PerspectiveProjectionMatrix'])
+        if self.augmentation:
+            augmented = self.augmentation(image=image, keypoints=np.expand_dims(pos_gt,0), bboxes=np.expand_dims(bbox_pref,0))
+            image = augmented["image"]
+            pos_gt = augmented['keypoints'][0]
+            bbox_pref = augmented['bboxes'][0].astype(np.int32)
+        image = cv2.cvtColor(image,cv2.COLOR_BGR2RGB)
+    
+        return image, pos_gt, pose_kpt, P
