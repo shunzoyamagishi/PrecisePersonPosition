@@ -175,7 +175,7 @@ def mask_prediction(
 def calc_max(arr:np.ndarray)->np.ndarray:
     max_index_flat = np.argmax(arr) 
     max_index = np.unravel_index(max_index_flat, arr.shape)
-    return np.array([max_index[1], max_index[0]])
+    return np.array([max_index[1], max_index[0]]).astype(np.float32)
 
 
 def calc_peak_centroid(arr: np.ndarray, r: int = 20, rel_thresh: float | None = None) -> np.ndarray:

@@ -52,7 +52,7 @@ def vitpose_inference(
     person_boxes[:, 3] = person_boxes[:, 3] - person_boxes[:, 1]
 
     if len(person_boxes) == 0:
-        return None, None, None
+        return None, None, image
     
     # Detect keypoints for each person found
     inputs = vitpose_image_processor(image, boxes=[person_boxes], return_tensors="pt").to(vitpose_model.device)

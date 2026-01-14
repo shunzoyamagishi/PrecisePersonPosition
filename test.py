@@ -32,41 +32,44 @@ def test(cfg:dict, save_dir:str):
     df = pd.DataFrame(columns=["lower_f", "mid_f", "bc_bbox", "pred_point", "error_lower_f", "error_mid_f", "error_bc_bbox", "error_pred_point"])
     
     for i in tqdm(range(len(testdataset)), desc=f"Test : "):
-        img, pos, pose_kpt, P = testdataset.__getitem__(i)
+        img, _, _, P = testdataset.__getitem__(i)
         H_image2field = np.linalg.inv(P[:,[0,1,3]]).astype(np.float32)
 
         kpt, detect, _ = vitpose(img)
-        bboxes_xyxy = detect['boxes'].detach().cpu().numpy()
-        bboxes_conf = detect['scores'].detach().cpu().numpy()
-
-        croped = crop_input(bboxes_xyxy, img.shape[0:2], pad=200)[np.argmax(bboxes_conf)]
-        bbox = bboxes_xyxy[np.argmax(bboxes_conf)]
-
-        input = img[croped[1]:croped[3], croped[0]:croped[2]]
-        input = cv2.resize(input, (cfg['in_size'], (cfg['in_size'])))
-        scale = cfg['in_size']/(croped[2]-croped[0])
-
-        depth_result, pred_result = model.inference(input)
-        mask_region = (scale*(bbox- np.tile(croped[0:2],2))).astype(np.uint16)
-        pred_result = mask_prediction(pred_result, mask_region)
-        # pred_point = calc_peak_centroid(pred_result, r=min(img.shape[0:2])//10, rel_thresh=0.5)
-        pred_point = calc_max(pred_result)
-        pred_point = np.array([1/scale, 1/scale])*pred_point + croped[0:2]
-
-        bc_bbox = np.array([bbox[0:3:2].mean(), bbox[3]])
-        left_f = kpt.xy[0][15]
-        right_f = kpt.xy[0][16]
-        mid_f = (left_f + right_f)/2
-        if left_f[1] > right_f[1]:
-            lower_f = left_f
+        if detect is None:
+            df.loc[len(df)] = [None, None, None, None, None, None, None, None]
         else:
-            lower_f = right_f
+            bboxes_xyxy = detect['boxes'].detach().cpu().numpy()
+            bboxes_conf = detect['scores'].detach().cpu().numpy()
 
-        pts_img = np.array([mid_f, lower_f, bc_bbox, pred_point], dtype=np.float32).reshape(1,-1,2)
-        pts_fld = cv2.perspectiveTransform(pts_img, H_image2field)
-        mid_f, lower_f, bc_bbox, pred_point = pts_fld[0]
+            croped = crop_input(bboxes_xyxy, img.shape[0:2], pad=200)[np.argmax(bboxes_conf)]
+            bbox = bboxes_xyxy[np.argmax(bboxes_conf)]
+
+            input = img[croped[1]:croped[3], croped[0]:croped[2]]
+            input = cv2.resize(input, (cfg['in_size'], (cfg['in_size'])))
+            scale = cfg['in_size']/(croped[2]-croped[0])
+
+            depth_result, pred_result = model.inference(input)
+            mask_region = (scale*(bbox- np.tile(croped[0:2],2))).astype(np.uint16)
+            pred_result = mask_prediction(pred_result, mask_region)
+            # pred_point = calc_peak_centroid(pred_result, r=min(img.shape[0:2])//10, rel_thresh=0.5)
+            pred_point = calc_max(pred_result)
+            pred_point = np.array([1/scale, 1/scale])*pred_point + croped[0:2]
+
+            bc_bbox = np.array([bbox[0:3:2].mean(), bbox[3]])
+            left_f = kpt.xy[0][15]
+            right_f = kpt.xy[0][16]
+            mid_f = (left_f + right_f)/2
+            if left_f[1] > right_f[1]:
+                lower_f = left_f
+            else:
+                lower_f = right_f
+
+            pts_img = np.array([mid_f, lower_f, bc_bbox, pred_point], dtype=np.float32).reshape(1,-1,2)
+            pts_fld = cv2.perspectiveTransform(pts_img, H_image2field)
+            mid_f, lower_f, bc_bbox, pred_point = pts_fld[0]
         
-        df.loc[len(df)] = [lower_f, mid_f, bc_bbox, pred_point, np.linalg.norm(lower_f), np.linalg.norm(mid_f), np.linalg.norm(bc_bbox), np.linalg.norm(pred_point)]
+            df.loc[len(df)] = [lower_f, mid_f, bc_bbox, pred_point, np.linalg.norm(lower_f), np.linalg.norm(mid_f), np.linalg.norm(bc_bbox), np.linalg.norm(pred_point)]
 
   
     errors = pd.DataFrame({
