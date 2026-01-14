@@ -113,7 +113,7 @@ if __name__ == "__main__":
 
     cfg = load_config(args.config)
 
-    save_dir = os.path.join("test", datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
+    save_dir = os.path.join("runs/test", datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
     os.makedirs(save_dir, exist_ok=True)
     with open(os.path.join(save_dir, "config.yaml"), "w", encoding="utf-8") as f:
         yaml.safe_dump(cfg, f)

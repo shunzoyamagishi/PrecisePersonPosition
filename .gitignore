@@ -4,10 +4,8 @@ pictures/
 trains/
 trains_dual/
 models/
-src/utils(old).py
 data/
-src/__pycache__/
-inference/
+runs/
 yolo11n.pt
 config/simple.yaml
 example/
@@ -15,7 +13,6 @@ checkpoints/
 trains_dual/
 datamaker/
 *.ipynb
-src/__pycache__/
 config/depth_continue.yaml
 __pycache__/
 config/depth_continue.yaml
