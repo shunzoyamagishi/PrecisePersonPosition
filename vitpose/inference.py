@@ -18,7 +18,7 @@ def vitpose_inference(
         person_model:RTDetrForObjectDetection,
         vitpose_image_processor:AutoProcessor,
         vitpose_model:VitPoseForPoseEstimation
-    )->tuple[sv.KeyPoints, np.ndarray, Image]:
+    )->tuple[sv.KeyPoints, dict, Image]:
     if type(image) == np.ndarray:
         image = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
 
@@ -32,6 +32,14 @@ def vitpose_inference(
         outputs, target_sizes=torch.tensor([(image.height, image.width)]), threshold=0.3
     )
     result = results[0]
+
+    keep = [
+        i for i, label in enumerate(result["labels"])
+        if int(label) == 0
+    ]
+
+    for k in ["scores", "labels", "boxes"]:
+        result[k] = result[k][keep]
 
     # Human label refers 0 index in COCO dataset
     person_boxes = result["boxes"][result["labels"] == 0]
@@ -79,4 +87,4 @@ def vitpose_inference(
         key_points=key_points
     )
 
-    return key_points, person_boxes_xyxy, persons_boxes_scores, annotated_frame
+    return key_points, result, annotated_frame
