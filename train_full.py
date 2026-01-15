@@ -135,7 +135,7 @@ def train_full(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="学習コード")
-    parser.add_argument("--config", default="default.yaml", help="設定ファイルのパス")
+    parser.add_argument("--config", default="config/default.yaml", help="設定ファイルのパス")
     args = parser.parse_args()
 
     assert os.path.exists(args.config), f"config {args.config} is not exists."
@@ -148,6 +148,5 @@ if __name__ == "__main__":
     os.makedirs(save_dir, exist_ok=True)
     with open(os.path.join(save_dir, "config.yaml"), "w", encoding="utf-8") as f:
         yaml.safe_dump(cfg, f)
-
     train_full(cfg=cfg, save_dir=save_dir)
     
