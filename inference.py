@@ -33,7 +33,6 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 def inference(path:str, cfg:dict, save_dir:str):    
     pipeline = PositionEstimatorPipeline(cfg=cfg, device=DEVICE)
 
-    print("Person Detection")
     if is_video(path):
         cap = cv2.VideoCapture(path)
         if not cap.isOpened():

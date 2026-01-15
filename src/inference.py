@@ -19,11 +19,11 @@ class PositionEstimatorPipeline:
     def __call__(self, image:np.ndarray|Image.Image)->np.ndarray:
         if type(image) == np.ndarray:
             image = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
-        detect, annotatedimage =self.detr_pipeline(image, class_ids=[0], threshold=0.5)
+        detect, annotatedimage =self.detr_pipeline(image, class_ids=[0], threshold=0.8)
         annotatedimage = cv2.cvtColor(np.array(annotatedimage), cv2.COLOR_RGB2BGR)
         if detect is None:
             return None, annotatedimage
-        cropped = self.crop_input(detect.xyxy, image.size)
+        cropped = self.crop_input(detect.xyxy, image.size, pad=1.2)
         for bbox, square in zip(detect.xyxy, cropped):
             x1, y1, x2, y2 = map(int, square)
             input = image.crop((x1, y1, x2, y2))
@@ -31,7 +31,7 @@ class PositionEstimatorPipeline:
             scale = self.in_size/(x2-x1)
 
             depth_result, pred_result = self.positionestimator.inference(np.array(input))
-            mask_region = (scale*(bbox- np.tile([x1,y1],2))).astype(np.uint16)
+            mask_region = (scale*(bbox- np.tile([x1,y1],2))).astype(np.uint32)
             pred_result = self.mask_prediction(pred_result, mask_region)
             # pred_point = calc_peak_centroid(pred_result, r=min(img.shape[0:2])//10, rel_thresh=0.5)
             pred_point = self.calc_max(pred_result)
@@ -39,7 +39,7 @@ class PositionEstimatorPipeline:
 
             annotatedimage = cv2.drawMarker(
                                 img=annotatedimage,
-                                position=pred_point.astype(np.int32),
+                                position=pred_point.astype(np.uint32),
                                 color=sv.Color.from_hex("#fc0303").as_bgr(),
                                 markerType=cv2.MARKER_CROSS,
                                 markerSize=20,
@@ -50,7 +50,7 @@ class PositionEstimatorPipeline:
         return annotatedimage
     
 
-    def crop_input(self, xyxy:np.ndarray, imgsize:Tuple[int, int], pad:float=2/3, allow_shrink:bool=True)->np.ndarray:
+    def crop_input(self, xyxy:np.ndarray, imgsize:Tuple[int, int], pad:float=1.0, allow_shrink:bool=True)->np.ndarray:
         img_w, img_h = imgsize
 
         in_region = []
@@ -61,7 +61,7 @@ class PositionEstimatorPipeline:
             bw = max(1, x2 - x1)
             bh = max(1, y2 - y1)
 
-            if pad:
+            if pad>1.0:
                 side = int(pad*max(bw, bh))
             else:
                 side = max(bw, bh)
