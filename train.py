@@ -68,9 +68,8 @@ def train(
     depth_model = depth_model.to(DEVICE2).eval()
     
     # model
-    model = SwinTransformerHead(in_size=input_size, in_channel=depthmodel_configs['vits']['features'], out_channel=2, device=DEVICE1)
+    model = SwinTransformerHead(in_size=input_size, in_channel=depthmodel_configs[encoder]['features'], out_channel=2, device=DEVICE1)
     model = model.to(DEVICE1) 
-    logger.info(f"Model: model({depthmodel_configs['vits']['features']}x{input_size}x{input_size})_{cfg["model"]}")
 
     # optimizer
     optimizer = AdamWScheduleFree(model.parameters())
@@ -159,14 +158,14 @@ def train(
             "model": copy.deepcopy(model.state_dict()),
             "optimizer": optimizer.state_dict(),   # ← AdamWのm/vなどが入る
             "epoch": epoch,                        # 次回は epoch+1 から
-            "val": avg_val_loss,
-            "best_train": best_train_loss,          # 任意
-            "best_val": best_val_loss,              # 任意
+            "train_loss": avg_train_loss,
+            "val_loss": avg_val_loss,
+            "in_size": (depthmodel_configs[encoder]['features'], input_size, input_size)
         }
         logger.info(f"model saved (val_loss={best_val_loss:.6f})")
         torch.save(
             ckpt,
-            os.path.join(save_dir, f"model({depthmodel_configs['vits']['features']}x{input_size}x{input_size})_{cfg['model']}_epoch{epoch+1}.pt")
+            os.path.join(save_dir, f"model_epoch{epoch+1}.pt")
         )
 
         torch.cuda.empty_cache()
