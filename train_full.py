@@ -59,7 +59,7 @@ def train_full(
         ckpt = torch.load(pretrain_model, map_location='cpu')
         model.head.load_state_dict(ckpt["model"]) 
         optimizer.load_state_dict(ckpt["optimizer"]) 
-        start_epoch = ckpt.get("epoch", -1) + 1        
+        start_epoch = ckpt.get("epoch", -1)     
         best_train_loss = ckpt.get("best_train", float("inf"))
         logger.info(f"Loaded pretrained model: {pretrain_model}")
 
