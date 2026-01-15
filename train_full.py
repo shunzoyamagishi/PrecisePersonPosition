@@ -115,7 +115,7 @@ def train_full(
         ckpt = {
             "model": copy.deepcopy(model.head.state_dict()),
             "optimizer": optimizer.state_dict(),   # ← AdamWのm/vなどが入る
-            "epoch": epoch,                        # 次回は epoch+1 から
+            "epoch": epoch+1,                        # 次回は epoch+1 から
             "train_loss": avg_train_loss,
             "val_loss": None,
             "DepthAnythingV2_encoder": cfg["DepthAnythingV2_encoder"],
