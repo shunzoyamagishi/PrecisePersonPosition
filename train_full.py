@@ -10,7 +10,7 @@ from torch.utils.tensorboard import SummaryWriter
 from schedulefree import AdamWScheduleFree
 import itertools
 
-from src.model import SwinTransformerHead
+from src.model import SwinTransformerHead, PositionEstimator
 from src.loss import KLDivLoss
 from src.dataloader import PersonPositionDataset_Full
 from src.depth import DepthFeatureExtractor
@@ -44,25 +44,10 @@ def train_full(
     train_dataset = PersonPositionDataset_Full("data", input_size=input_size, target_std=target_std, augmentation=augmentation)
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     
-
-    # Depth Model
-    depthmodel_configs = {
-        'vits': {'encoder': 'vits', 'features': 64, 'out_channels': [48, 96, 192, 384]},
-        'vitb': {'encoder': 'vitb', 'features': 128, 'out_channels': [96, 192, 384, 768]},
-        'vitl': {'encoder': 'vitl', 'features': 256, 'out_channels': [256, 512, 1024, 1024]},
-        'vitg': {'encoder': 'vitg', 'features': 384, 'out_channels': [1536, 1536, 1536, 1536]}
-    }
-    encoder = cfg["DepthAnythingV2_encoder"]
-    depth_model = DepthFeatureExtractor(**depthmodel_configs[encoder], device=DEVICE2)
-    
-    depth_model.load_state_dict(torch.load(f'Depth_Anything_V2/checkpoints/depth_anything_v2_{encoder}.pth', map_location='cpu'))
-    depth_model = depth_model.to(DEVICE2).eval()
-    # for p in depth_model.parameters():
-    #     p.requires_grad_(False)
-    
     # model
-    model = SwinTransformerHead(in_size=input_size, in_channel=depthmodel_configs[encoder]['features'], out_channel=2, device=DEVICE1)
-    model = model.to(DEVICE1)
+    model = PositionEstimator(cfg=cfg)
+    model.depth_model.to(DEVICE2).eval()
+    model.head.to(DEVICE1).train()
 
     # optimizer
     optimizer = AdamWScheduleFree(model.parameters())
@@ -72,7 +57,7 @@ def train_full(
                              
     if pretrain_model is not None and os.path.isfile(pretrain_model):
         ckpt = torch.load(pretrain_model, map_location='cpu')
-        model.load_state_dict(ckpt["model"]) 
+        model.head.load_state_dict(ckpt["model"]) 
         optimizer.load_state_dict(ckpt["optimizer"]) 
         start_epoch = ckpt.get("epoch", -1) + 1        
         best_train_loss = ckpt.get("best_train", float("inf"))
@@ -82,20 +67,20 @@ def train_full(
 
     if isinstance(optimizer, AdamWScheduleFree):
         logger.info("Schedule-Free calibration start")
-        model.train()
+        model.head.train()
         optimizer.eval()
         with torch.no_grad():
             for (images, _, _, _) in tqdm(itertools.islice(train_loader, 50), total=50, desc="Calibration"):
                 images = images.to(DEVICE2)
-                feature, _ = depth_model(images)
+                feature, _ = model.depth_model(images)
                 feature = feature.to(DEVICE1)                
-                outputs = model(feature)
-        model.eval()
+                outputs = model.head(feature)
+        model.head.eval()
         logger.info("Schedule-Free calibration done")
     
     
     for epoch in range(start_epoch,epochs):
-        model.train()
+        model.head.train()
         optimizer.train()
         running_loss = 0.0
 
@@ -106,12 +91,12 @@ def train_full(
         for batch, (images, _, heatmap, _) in enumerate(tqdm(train_loader, desc=f"Train : Epoch {epoch + 1}/{epochs}", unit="batch")):
             images = images.to(DEVICE2)
             with torch.no_grad(): 
-                feature, _ = depth_model(images)
+                feature, _ = model.depth_model(images)
             feature = feature.to(DEVICE1)
             heatmap = heatmap.to(DEVICE1)
             optimizer.zero_grad()
             
-            outputs = model(feature)
+            outputs = model.head(feature)
             loss = loss_function(outputs, heatmap)
             loss.backward()
             optimizer.step()
@@ -128,13 +113,14 @@ def train_full(
 
         # best_model_weights = copy.deepcopy(model.state_dict())
         ckpt = {
-            "model": copy.deepcopy(model.state_dict()),
+            "model": copy.deepcopy(model.head.state_dict()),
             "optimizer": optimizer.state_dict(),   # ← AdamWのm/vなどが入る
             "epoch": epoch,                        # 次回は epoch+1 から
             "train_loss": avg_train_loss,
             "val_loss": None,
-            "DepthAnythingV2_encoder": encoder,
-            "in_size": input_size
+            "DepthAnythingV2_encoder": cfg["DepthAnythingV2_encoder"],
+            "in_size": int(cfg["in_size"]),
+            "targetstd": float(cfg["targetstd"])
         }
         logger.info(f"model saved (train_loss={best_train_loss:.6f})")
         torch.save(
