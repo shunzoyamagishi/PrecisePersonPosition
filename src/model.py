@@ -99,10 +99,11 @@ class PositionEstimator(nn.Module):
             self.depth_model.load_state_dict(torch.load(f'Depth_Anything_V2/checkpoints/depth_anything_v2_{encoder}.pth', map_location='cpu'))
         else:
             print(f"Depth Anything V2 Checkpoint depth_anything_v2_{encoder}.pth is not found.")
-        if pretrain_path:
-            self.head.load_state_dict(torch.load(pretrain_path, map_location='cpu')["model"]) 
-        else:
-            print(f"Checkpoint {cfg.get("pretrain_model")} is not found.")
+        if pretrain_path is not None:
+            if os.path.isfile(pretrain_path):
+                self.head.load_state_dict(torch.load(pretrain_path, map_location='cpu')["model"]) 
+            else:
+                print(f"Checkpoint {cfg.get("pretrain_model")} is not found.")
         
         self.depth_model = self.depth_model.to(DEVICE).eval()
         self.head = self.head.to(DEVICE).eval()
