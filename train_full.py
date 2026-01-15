@@ -135,7 +135,7 @@ def train_full(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="学習コード")
-    parser.add_argument("--config", default="config/default.yaml", help="設定ファイルのパス")
+    parser.add_argument("--config", default="config/default_train.yaml", help="設定ファイルのパス")
     args = parser.parse_args()
 
     assert os.path.exists(args.config), f"config {args.config} is not exists."

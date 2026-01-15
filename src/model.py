@@ -79,10 +79,7 @@ class SwinTransformerHead(nn.Module):
 class PositionEstimator(nn.Module):
     def __init__(self, cfg:dict, DEVICE:str='cuda'):
         super().__init__()
-        
-        pretrain_path = cfg.get("pretrain_model") if (cfg.get("pretrain_model") and os.path.isfile(cfg["pretrain_model"])) else None
-        
-        self.in_size = int(cfg["in_size"])
+              
         self.DEVICE = DEVICE 
 
         depthmodel_configs = {
@@ -100,13 +97,14 @@ class PositionEstimator(nn.Module):
         else:
             print(f"Depth Anything V2 Checkpoint depth_anything_v2_{encoder}.pth is not found.")
 
-        if pretrain_path is not None and os.path.isfile(pretrain_path):
-                ckpt = torch.load(pretrain_path, map_location='cpu')
-                self.in_size = ckpt.get("in_size", self.in_size)
-                self.head = SwinTransformerHead(in_size=self.in_size, in_channel=depthmodel_configs[encoder]['features'], out_channel=2, device=self.DEVICE)
-                self.head.load_state_dict(ckpt["model"])
-                print(f"Head checkpoint {cfg.get("pretrain_model")} is loaded.")
+        if cfg.get("pretrain_model") and os.path.isfile(cfg["pretrain_model"]):
+            ckpt = torch.load(cfg["pretrain_model"], map_location='cpu')
+            self.in_size = ckpt.get("in_size", 224)
+            self.head = SwinTransformerHead(in_size=self.in_size, in_channel=depthmodel_configs[encoder]['features'], out_channel=2, device=self.DEVICE)
+            self.head.load_state_dict(ckpt["model"])
+            print(f"Head checkpoint {cfg["pretrain_model"]} is loaded.")
         else:
+            self.in_size = cfg.get("in_size", 224)
             self.head = SwinTransformerHead(in_size=self.in_size, in_channel=depthmodel_configs[encoder]['features'], out_channel=2, device=self.DEVICE)
       
         

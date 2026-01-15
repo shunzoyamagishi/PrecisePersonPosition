@@ -1,0 +1,9 @@
+in_size: 224
+epoch: 30
+batch: 8
+DepthAnythingV2_encoder: "vits"
+targetstd: 5.0
+pretrain_model: None 
+augmentation: True
+DEVICE1: 0
+DEVICE2: 0

@@ -12,7 +12,6 @@ from detr import DeTRPipeline
 
 class PositionEstimatorPipeline:
     def __init__(self, cfg:dict, device:str="cuda"):
-        self.in_size = cfg['in_size']
         self.detr_pipeline = DeTRPipeline(device=device)
         self.positionestimator = PositionEstimator(cfg=cfg, DEVICE=device)
 
@@ -27,8 +26,8 @@ class PositionEstimatorPipeline:
         for bbox, square in zip(detect.xyxy, cropped):
             x1, y1, x2, y2 = map(int, square)
             input = image.crop((x1, y1, x2, y2))
-            input = input.resize((self.in_size, (self.in_size)))
-            scale = self.in_size/(x2-x1)
+            input = input.resize((self.positionestimator.in_size, self.positionestimator.in_size))
+            scale = self.positionestimator.in_size/(x2-x1)
 
             depth_result, pred_result = self.positionestimator.inference(np.array(input))
             mask_region = (scale*(bbox- np.tile([x1,y1],2))).astype(np.uint32)

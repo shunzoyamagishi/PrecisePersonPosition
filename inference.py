@@ -84,7 +84,7 @@ def is_video(path: str) -> bool:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="inferenceコード")
     parser.add_argument("input_path", help="input video/image path.")
-    parser.add_argument("--config", default="config/defalut.yaml", help="設定ファイルのパス")
+    parser.add_argument("--config", default="config/default.yaml", help="設定ファイルのパス")
     args = parser.parse_args()    
 
     assert os.path.exists(args.input_path), f"input {args.input_path} is not exists."
