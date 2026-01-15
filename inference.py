@@ -6,6 +6,7 @@ import time
 import argparse
 from typing import Tuple, Optional
 from PIL import Image
+from tqdm import tqdm
 
 from src.model import PositionEstimator
 from src.utils import load_config
@@ -34,13 +35,37 @@ def inference(path:str, cfg:dict, save_dir:str):
 
     print("Person Detection")
     if is_video(path):
-        return 0
+        cap = cv2.VideoCapture(path)
+        if not cap.isOpened():
+            raise ValueError(f"Failed to open the video: {path}")
+        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        fps = cap.get(cv2.CAP_PROP_FPS)
+        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+
+        output_path = os.path.join(save_dir, f"{os.path.splitext(os.path.basename(path))[0]}.mp4")
+        out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
+
+        for frame_idx in tqdm(range(total_frames), desc=f"Infering {os.path.basename(path)}"):
+            ret, frame = cap.read()
+            if not ret:
+                break
+            result = pipeline(frame)
+            out.write(result)
+        cap.release()
+        out.release()
+        print(f"Result has been saved to: {output_path}")
+
     elif is_image(path):
         img = cv2.imread(path)
+        if img is None:
+            raise ValueError(f"Failed to open the image: {path}")
         output_path = os.path.join(save_dir, f"{os.path.splitext(os.path.basename(path))[0]}.jpg")
         result = pipeline(img)
         cv2.imwrite(output_path, result)
         print(f"Result has been saved to: {output_path}")
+
 
     # print("Position Estimation")
     # for f, r in enumerate(results):
