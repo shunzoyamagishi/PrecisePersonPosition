@@ -36,7 +36,7 @@ def inference(path:str, cfg:dict, save_dir:str):
     if is_video(path):
         return 0
     elif is_image(path):
-        img = Image.open(path)
+        img = cv2.imread(path)
         output_path = os.path.join(save_dir, f"{os.path.splitext(os.path.basename(path))[0]}.jpg")
         result = pipeline(img)
         cv2.imwrite(output_path, result)
