@@ -45,7 +45,10 @@ def detr_inference(
 
         for k in ["scores", "labels", "boxes"]:
             result[k] = result[k][keep]
-
+    
+    if len(result["boxes"]) == 0:
+        return None, image
+    
     detections = sv.Detections.from_transformers(
         transformers_results=result
     )
