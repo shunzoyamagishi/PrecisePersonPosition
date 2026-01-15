@@ -133,7 +133,8 @@ def train_full(
             "epoch": epoch,                        # 次回は epoch+1 から
             "train_loss": avg_train_loss,
             "val_loss": None,
-            "in_size": (depthmodel_configs[encoder]['features'], input_size, input_size)
+            "DepthAnythingV2_encoder": encoder,
+            "in_size": input_size
         }
         logger.info(f"model saved (train_loss={best_train_loss:.6f})")
         torch.save(
