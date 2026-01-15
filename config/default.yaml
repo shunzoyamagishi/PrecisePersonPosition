@@ -1,2 +1,3 @@
 DepthAnythingV2_encoder: 'vits'
 pretrain_model: 'checkpoints/depthhead.pt'
+is_pose: True

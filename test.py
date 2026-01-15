@@ -13,7 +13,7 @@ from src.model import PositionEstimator
 from src.utils import load_config, perspective_transform
 from src.inference import crop_input, mask_prediction, calc_peak_centroid, calc_max
 from src.dataloader import TestDataset
-from vitpose import VitPosePipeline
+from persondetection import VitPosePipeline
 
 from ultralytics import YOLO
 

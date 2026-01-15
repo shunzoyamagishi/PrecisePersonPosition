@@ -12,13 +12,15 @@ Reference: Hugging Face Transformers – ViTPose Documentation
 
 """
 
-def vitpose_inference(
+def persondetection_inference(
         image:Image,
         person_image_processor:AutoProcessor,
         person_model:RTDetrForObjectDetection,
         vitpose_image_processor:AutoProcessor,
-        vitpose_model:VitPoseForPoseEstimation
-    )->tuple[sv.KeyPoints, dict, Image]:
+        vitpose_model:VitPoseForPoseEstimation,
+        is_pose:bool=False,
+        threshold:float=0.3,
+    )->tuple[dict, sv.KeyPoints, Image.Image]:
     if type(image) == np.ndarray:
         image = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
 
@@ -29,7 +31,7 @@ def vitpose_inference(
         outputs = person_model(**inputs)
 
     results = person_image_processor.post_process_object_detection(
-        outputs, target_sizes=torch.tensor([(image.height, image.width)]), threshold=0.3
+        outputs, target_sizes=torch.tensor([(image.height, image.width)]), threshold=threshold
     )
     result = results[0]
 
@@ -55,6 +57,18 @@ def vitpose_inference(
 
     if len(person_boxes) == 0:
         return None, None, image
+
+    box_annotator = sv.BoxAnnotator(
+        color=sv.Color.from_hex('#fcba03'),
+        thickness=1
+    )
+    annotated_frame = box_annotator.annotate(
+        scene=image.copy(), 
+        detections=detections
+    )
+
+    if not is_pose:
+        return detections, None, annotated_frame
     
     # Detect keypoints for each person found
     inputs = vitpose_image_processor(image, boxes=[person_boxes], return_tensors="pt").to(vitpose_model.device)
@@ -80,21 +94,15 @@ def vitpose_inference(
         color=sv.Color.from_hex('#ff00ff'),
         radius=2
     )
-    box_annotator = sv.BoxAnnotator(
-        color=sv.Color.from_hex('#fcba03'),
-        thickness=1
-    )
+    
     annotated_frame = edge_annotator.annotate(
-        scene=image.copy(),
+        scene=annotated_frame,
         key_points=key_points
     )
     annotated_frame = vertex_annotator.annotate(
         scene=annotated_frame,
         key_points=key_points
     )
-    annotated_frame = box_annotator.annotate(
-        scene=annotated_frame, 
-        detections=detections
-    )
+    
 
-    return key_points, detections, annotated_frame
+    return detections, key_points, annotated_frame

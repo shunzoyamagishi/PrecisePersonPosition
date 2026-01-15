@@ -6,19 +6,18 @@ import torch
 from typing import Tuple, Optional
 
 from src.model import PositionEstimator
-from vitpose import VitPosePipeline
-from detr import DeTRPipeline
+from persondetection import PersonDetectionPipeline
 
 
 class PositionEstimatorPipeline:
     def __init__(self, cfg:dict, device:str="cuda"):
-        self.detr_pipeline = DeTRPipeline(device=device)
+        self.detect_pipeline = PersonDetectionPipeline(is_pose=cfg.get("is_pose", False), device=device)
         self.positionestimator = PositionEstimator(cfg=cfg, DEVICE=device)
 
     def __call__(self, image:np.ndarray|Image.Image)->np.ndarray:
         if type(image) == np.ndarray:
             image = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
-        detect, annotatedimage = self.detr_pipeline(image, class_ids=[0], threshold=0.8)
+        detect, _, annotatedimage = self.detect_pipeline(image, threshold=0.8)
         annotatedimage = cv2.cvtColor(np.array(annotatedimage), cv2.COLOR_RGB2BGR)
         if detect is None:
             return None, annotatedimage

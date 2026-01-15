@@ -12,9 +12,6 @@ from src.model import PositionEstimator
 from src.utils import load_config
 from src.inference import PositionEstimatorPipeline
 
-from ultralytics import YOLO
-from ultralytics.engine.results import Results
-
 from pathlib import Path
 import mimetypes
 
