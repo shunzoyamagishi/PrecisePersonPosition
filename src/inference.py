@@ -23,7 +23,7 @@ class PositionEstimatorPipeline:
         annotatedimage = cv2.cvtColor(np.array(annotatedimage), cv2.COLOR_RGB2BGR)
         if detect is None:
             return None, annotatedimage
-        cropped = self.crop_input(detect.xyxy, image.size, pad=200)
+        cropped = self.crop_input(detect.xyxy, image.size)
         for bbox, square in zip(detect.xyxy, cropped):
             x1, y1, x2, y2 = map(int, square)
             input = image.crop((x1, y1, x2, y2))
@@ -50,7 +50,7 @@ class PositionEstimatorPipeline:
         return annotatedimage
     
 
-    def crop_input(self, xyxy:np.ndarray, imgsize:Tuple[int, int], pad:int=0, allow_shrink:bool=True)->np.ndarray:
+    def crop_input(self, xyxy:np.ndarray, imgsize:Tuple[int, int], pad:float=2/3, allow_shrink:bool=True)->np.ndarray:
         img_w, img_h = imgsize
 
         in_region = []
@@ -62,9 +62,9 @@ class PositionEstimatorPipeline:
             bh = max(1, y2 - y1)
 
             if pad:
-                side = max(bw, bh) + pad
+                side = int(pad*max(bw, bh))
             else:
-                side = 3*max(bw, bh)//2
+                side = max(bw, bh)
             max_side = min(img_w, img_h)
             if side > max_side and allow_shrink:
                 side = max_side
