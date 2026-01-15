@@ -19,7 +19,7 @@ class PositionEstimatorPipeline:
     def __call__(self, image:np.ndarray|Image.Image)->np.ndarray:
         if type(image) == np.ndarray:
             image = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
-        detect, annotatedimage =self.detr_pipeline(image, class_ids=[0], threshold=0.8)
+        detect, annotatedimage = self.detr_pipeline(image, class_ids=[0], threshold=0.8)
         annotatedimage = cv2.cvtColor(np.array(annotatedimage), cv2.COLOR_RGB2BGR)
         if detect is None:
             return None, annotatedimage
