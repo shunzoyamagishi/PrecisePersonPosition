@@ -47,8 +47,8 @@ def inference(path:str, cfg:dict, save_dir:str):
             ret, frame = cap.read()
             if not ret:
                 break
-            result = pipeline(frame)
-            out.write(result)
+            _, _, _, annotatedframe = pipeline(frame)
+            out.write(annotatedframe)
         cap.release()
         out.release()
         print(f"Result has been saved to: {output_path}")
@@ -58,8 +58,8 @@ def inference(path:str, cfg:dict, save_dir:str):
         if img is None:
             raise ValueError(f"Failed to open the image: {path}")
         output_path = os.path.join(save_dir, f"{os.path.splitext(os.path.basename(path))[0]}.jpg")
-        result = pipeline(img)
-        cv2.imwrite(output_path, result)
+        _, _, _, annotatedimg = pipeline(img)
+        cv2.imwrite(output_path, annotatedimg)
         print(f"Result has been saved to: {output_path}")
 
 

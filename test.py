@@ -11,22 +11,13 @@ from typing import Tuple, Optional
 
 from src.model import PositionEstimator
 from src.utils import load_config, perspective_transform
-from src.inference import crop_input, mask_prediction, calc_peak_centroid, calc_max
+from src.inference import PositionEstimatorPipeline
 from src.dataloader import TestDataset
-from persondetection import VitPosePipeline
-
-from ultralytics import YOLO
-
-
-
-# デバイスを指定
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 def test(cfg:dict, save_dir:str):
-    DEVICE = torch.device(f"cuda:{int(cfg["DEVICE1"])}" if torch.cuda.is_available() else "cpu")
-    model = PositionEstimator(cfg=cfg, DEVICE=DEVICE)
-    vitpose = VitPosePipeline(device=DEVICE)
+    DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    pipeline = PositionEstimatorPipeline(cfg=cfg, device=DEVICE)
     testdataset = TestDataset("data/test")
 
     df = pd.DataFrame(columns=["lower_f", "mid_f", "bc_bbox", "pred_point", "error_lower_f", "error_mid_f", "error_bc_bbox", "error_pred_point"])
@@ -35,38 +26,26 @@ def test(cfg:dict, save_dir:str):
         img, _, _, P = testdataset.__getitem__(i)
         H_image2field = np.linalg.inv(P[:,[0,1,3]]).astype(np.float32)
 
-        kpt, detect, _ = vitpose(img)
+        detect, kpt, pred_pts, _ = pipeline(img)
         if detect is None:
             df.loc[len(df)] = [np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan]
         else:
-            croped = crop_input(detect.xyxy, img.shape[0:2], pad=200)[np.argmax(detect.confidence)]
             bbox = detect.xyxy[np.argmax(detect.confidence)]
-
-            input = img[croped[1]:croped[3], croped[0]:croped[2]]
-            input = cv2.resize(input, (cfg['in_size'], (cfg['in_size'])))
-            scale = cfg['in_size']/(croped[2]-croped[0])
-
-            depth_result, pred_result = model.inference(input)
-            mask_region = (scale*(bbox- np.tile(croped[0:2],2))).astype(np.uint16)
-            pred_result = mask_prediction(pred_result, mask_region)
-            # pred_point = calc_peak_centroid(pred_result, r=min(img.shape[0:2])//10, rel_thresh=0.5)
-            pred_point = calc_max(pred_result)
-            pred_point = np.array([1/scale, 1/scale])*pred_point + croped[0:2]
-
             bc_bbox = np.array([bbox[0:3:2].mean(), bbox[3]])
-            left_f = kpt.xy[0][15]
-            right_f = kpt.xy[0][16]
+            left_f = kpt.xy[np.argmax(detect.confidence)][15]
+            right_f = kpt.xy[np.argmax(detect.confidence)][16]
+            pred_pt = pred_pts[np.argmax(detect.confidence)]
             mid_f = (left_f + right_f)/2
             if left_f[1] > right_f[1]:
                 lower_f = left_f
             else:
                 lower_f = right_f
 
-            pts_img = np.array([mid_f, lower_f, bc_bbox, pred_point], dtype=np.float32).reshape(1,-1,2)
+            pts_img = np.array([mid_f, lower_f, bc_bbox, pred_pt], dtype=np.float32).reshape(1,-1,2)
             pts_fld = cv2.perspectiveTransform(pts_img, H_image2field)
-            mid_f, lower_f, bc_bbox, pred_point = pts_fld[0]
-        
-            df.loc[len(df)] = [lower_f, mid_f, bc_bbox, pred_point, np.linalg.norm(lower_f), np.linalg.norm(mid_f), np.linalg.norm(bc_bbox), np.linalg.norm(pred_point)]
+            mid_f, lower_f, bc_bbox, pred_pt = pts_fld[0]
+
+            df.loc[len(df)] = [lower_f, mid_f, bc_bbox, pred_pt, np.linalg.norm(lower_f), np.linalg.norm(mid_f), np.linalg.norm(bc_bbox), np.linalg.norm(pred_pt)]
 
   
     errors = pd.DataFrame({

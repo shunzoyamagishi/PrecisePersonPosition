@@ -1,10 +1,3 @@
-in_size: 224
-epoch: 10
-batch: 2
-model: "SwinHead"
-DepthAnythingV2_encoder: "vits"
-targetstd: 5.0
-pretrain_model: "checkpoints/depthhead.pt"
-augmentation: True
-DEVICE1: 0
-DEVICE2: 0
+DepthAnythingV2_encoder: 'vits'
+pretrain_model: 'checkpoints/depthhead.pt'
+is_pose: True

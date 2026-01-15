@@ -17,10 +17,11 @@ class PositionEstimatorPipeline:
     def __call__(self, image:np.ndarray|Image.Image)->np.ndarray:
         if type(image) == np.ndarray:
             image = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
-        detect, _, annotatedimage = self.detect_pipeline(image, threshold=0.8)
+        detect, kpt, annotatedimage = self.detect_pipeline(image, threshold=0.8)
         annotatedimage = cv2.cvtColor(np.array(annotatedimage), cv2.COLOR_RGB2BGR)
         if detect is None:
-            return None, annotatedimage
+            return None, None, None, annotatedimage
+        pred_pts = []
         cropped = self.crop_input(detect.xyxy, image.size, pad=1.2)
         for bbox, square in zip(detect.xyxy, cropped):
             x1, y1, x2, y2 = map(int, square)
@@ -32,20 +33,23 @@ class PositionEstimatorPipeline:
             mask_region = (scale*(bbox- np.tile([x1,y1],2))).astype(np.uint32)
             pred_result = self.mask_prediction(pred_result, mask_region)
             # pred_point = calc_peak_centroid(pred_result, r=min(img.shape[0:2])//10, rel_thresh=0.5)
-            pred_point = self.calc_max(pred_result)
-            pred_point = np.array([1/scale, 1/scale])*pred_point + np.array([x1,y1])
+            pred_pt = self.calc_max(pred_result)
+            pred_pt = np.array([1/scale, 1/scale])*pred_pt + np.array([x1,y1])
 
             annotatedimage = cv2.drawMarker(
                                 img=annotatedimage,
-                                position=pred_point.astype(np.uint32),
+                                position=pred_pt.astype(np.uint32),
                                 color=sv.Color.from_hex("#fc0303").as_bgr(),
                                 markerType=cv2.MARKER_CROSS,
                                 markerSize=20,
                                 thickness=2,
                                 line_type=cv2.LINE_4
                             )
+            pred_pts.append(pred_pt)
+        
+        pred_pts = np.array(pred_pts)
 
-        return annotatedimage
+        return detect, kpt, pred_pts, annotatedimage
     
 
     def crop_input(self, xyxy:np.ndarray, imgsize:Tuple[int, int], pad:float=1.0, allow_shrink:bool=True)->np.ndarray:
