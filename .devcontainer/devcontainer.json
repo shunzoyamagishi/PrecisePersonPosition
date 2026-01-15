@@ -1,24 +1,9 @@
-// For format details, see https://aka.ms/devcontainer.json. For config options, see the
-// README at: https://github.com/devcontainers/templates/tree/main/src/python
 {
-	"name": "Python 3",
-	// Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
-	"image": "mcr.microsoft.com/devcontainers/python:2-3.14-trixie",
-	// "image": "mcr.microsoft.com/devcontainers/python:1-3.12-bookworm",
+  "name": "PrecisePersonPosition",
 
-	"runArgs": ["--gpus", "all"],
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "dev",
+  "workspaceFolder": "/workspaces/PrecisePersonPosition",
 
-	// Features to add to the dev container. More info: https://containers.dev/features.
-	// "features": {}
-
-	// Use 'forwardPorts' to make a list of ports inside the container available locally.
-	// "forwardPorts": [],
-
-	// Use 'postCreateCommand' to run commands after the container is created.
-	"postCreateCommand": "sudo apt-get update && sudo apt-get install -y libgl1 libglib2.0-0 && sudo apt install -y tmux && python -m pip install --upgrade pip && pip3 install --user -r Depth_Anything_V2/requirements.txt && pip3 install --user -r requirements.txt"
-	// Configure tool-specific properties.
-	// "customizations": {},
-
-	// Uncomment to connect as root instead. More info: https://aka.ms/dev-containers-non-root.
-	// "remoteUser": "root"
+  "postCreateCommand": "sudo apt-get update && sudo apt-get install -y libgl1 libglib2.0-0 tmux && python -m pip install --upgrade pip && pip3 install --user -r Depth_Anything_V2/requirements.txt && pip3 install --user -r requirements.txt"
 }

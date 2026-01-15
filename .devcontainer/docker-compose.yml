@@ -1,0 +1,17 @@
+version: "3.9"
+
+services:
+  dev:
+    container_name: ppp-devcontainer
+    image: mcr.microsoft.com/devcontainers/python:2-3.14-trixie
+
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]
+
+    volumes:
+      - ..:/workspaces/PrecisePersonPosition
+
+    command: sleep infinity
