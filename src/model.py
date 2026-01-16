@@ -80,7 +80,7 @@ class SwinTransformerHead(nn.Module):
 
 
 class PositionEstimator(nn.Module):
-    def __init__(self, cfg:dict|None=None, DEVICE:str='cuda'):
+    def __init__(self, cfg:dict|None=None, device:str='cuda'):
         super().__init__()
 
         default_cfg = {
@@ -94,7 +94,7 @@ class PositionEstimator(nn.Module):
         else:
             self.cfg = deep_merge_dict(default_cfg, cfg)
 
-        self.DEVICE = DEVICE
+        self.device = device
 
         depthmodel_configs = {
             'vits': {'encoder': 'vits', 'features': 64, 'out_channels': [48, 96, 192, 384]},
@@ -109,24 +109,24 @@ class PositionEstimator(nn.Module):
             ckpt = torch.load(self.cfg["pretrain_model"], map_location='cpu')
             self.in_size = ckpt.get("in_size", self.in_size)
             self.encoder = ckpt.get("DepthAnythingV2_encoder", self.encoder)
-            self.head = SwinTransformerHead(in_size=self.in_size, in_channel=depthmodel_configs[self.encoder]['features'], out_channel=2, device=self.DEVICE)
+            self.head = SwinTransformerHead(in_size=self.in_size, in_channel=depthmodel_configs[self.encoder]['features'], out_channel=2, device=self.device)
             self.head.load_state_dict(ckpt["model"])
             print(f"Head checkpoint {self.cfg['pretrain_model']} is loaded.")
         else:
-            self.head = SwinTransformerHead(in_size=self.in_size, in_channel=depthmodel_configs[self.encoder]['features'], out_channel=2, device=self.DEVICE)
+            self.head = SwinTransformerHead(in_size=self.in_size, in_channel=depthmodel_configs[self.encoder]['features'], out_channel=2, device=self.device)
 
-        self.depth_model = DepthFeatureExtractor(**depthmodel_configs[self.encoder], device=self.DEVICE)
+        self.depth_model = DepthFeatureExtractor(**depthmodel_configs[self.encoder], device=self.device)
         if os.path.isfile(f'Depth_Anything_V2/checkpoints/depth_anything_v2_{self.encoder}.pth'):
             self.depth_model.load_state_dict(torch.load(f'Depth_Anything_V2/checkpoints/depth_anything_v2_{self.encoder}.pth', map_location='cpu'))
             print(f"Depth Anything V2 checkpoint depth_anything_v2_{self.encoder}.pth is loaded.")
         else:
             print(f"Depth Anything V2 Checkpoint depth_anything_v2_{self.encoder}.pth is not found.")
 
-        self.depth_model = self.depth_model.to(self.DEVICE).eval()
-        self.head = self.head.to(self.DEVICE).eval()
+        self.depth_model = self.depth_model.to(self.device).eval()
+        self.head = self.head.to(self.device).eval()
 
     def forward(self, x:torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        x = x.to(self.DEVICE)
+        x = x.to(self.device)
         feature, depth = self.depth_model.forward(x)
         pos = self.head.forward(feature)
 

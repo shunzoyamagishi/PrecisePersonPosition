@@ -3,3 +3,4 @@ persondetection:
   is_pose: True
 positionestimation:
   pretrain_model: "checkpoints/depthhead.pt"
+  perspective_heatmap: True
