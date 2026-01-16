@@ -6,35 +6,40 @@ import torch
 from typing import Tuple, Optional
 
 from src.model import PositionEstimator
+from src.utils import deep_merge_dict
 from persondetection import PersonDetectionPipeline
 
 
 class PositionEstimatorPipeline:
     def __init__(self, cfg: dict | None = None, device: str = "cuda"):
         default_cfg = {
-            "detector_threshold": 0.3,
-            "is_pose": False,
-            "DepthAnythingV2_encoder": "vits",
-            "in_size": 224,
-            "pretrain_model": "checkpoints/depthhead.pt",
+            "persondetection":{
+                "detector_threshold": 0.6,
+                "is_pose": True,
+            },
+            "positionestimation":{
+                "DepthAnythingV2_encoder": "vits",
+                "in_size": 224,
+                "pretrain_model": "checkpoints/depthhead.pt",
+            }       
         }
         if cfg is None:
             self.cfg = default_cfg
         else:
-            self.cfg = self._merge_cfg(default_cfg, cfg)
+            self.cfg = deep_merge_dict(default_cfg, cfg)
 
-        self.detect_pipeline = PersonDetectionPipeline(is_pose=self.cfg["is_pose"], device=device)
-        self.positionestimator = PositionEstimator(cfg=self.cfg, DEVICE=device)
+        self.detect_pipeline = PersonDetectionPipeline(cfg=self.cfg["persondetection"], device=device)
+        self.positionestimator = PositionEstimator(cfg=self.cfg["positionestimation"], DEVICE=device)
 
 
     def __call__(self, image:np.ndarray|Image.Image)->Tuple[Optional[sv.Detections], Optional[dict], Optional[np.ndarray], np.ndarray]:
         return self.potisionestimation_inference(image)
         
 
-    def potisionestimation_inference(self, image:np.ndarray|Image.Image, threshold:float=0.8)->Tuple[Optional[sv.Detections], Optional[dict], Optional[np.ndarray], np.ndarray]:
+    def potisionestimation_inference(self, image:np.ndarray|Image.Image)->Tuple[Optional[sv.Detections], Optional[dict], Optional[np.ndarray], np.ndarray]:
         if type(image) == np.ndarray:
             image = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
-        detect, kpt, annotatedimage = self.detect_pipeline(image, threshold=threshold)
+        detect, kpt, annotatedimage = self.detect_pipeline(image)
         annotatedimage = cv2.cvtColor(np.array(annotatedimage), cv2.COLOR_RGB2BGR)
         if detect is None:
             return None, None, None, annotatedimage
@@ -284,14 +289,3 @@ class PositionEstimatorPipeline:
         cx = float((w * xs).sum() / s)
         cy = float((w * ys).sum() / s)
         return np.array([cx, cy])
-    
-
-    @staticmethod
-    def _merge_cfg(default: dict, user: dict) -> dict:
-        merged = default.copy()
-        for k, v in user.items():
-            if isinstance(v, dict) and k in merged:
-                merged[k] = PositionEstimatorPipeline._merge_cfg(merged[k], v)
-            else:
-                merged[k] = v
-        return merged

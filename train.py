@@ -16,11 +16,11 @@ from src.loss import KLDivLoss
 from src.dataloader import PersonPositionDataset
 from src.depth import DepthFeatureExtractor
 from src.augumentation import create_augmentation
-from src.utils import load_config, setup_logger
+from src.utils import load_config, setup_logger, deep_merge_dict
     
 
 def train(
-    cfg:dict,
+    cfg:dict|None=None,
     save_dir:str,
 ):
     # config 

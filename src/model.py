@@ -3,9 +3,12 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torchvision
 from torchvision.models import swin_v2_s, Swin_V2_S_Weights, swin_v2_t, Swin_V2_T_Weights
-from src.depth import DepthFeatureExtractor
 import os
 import numpy as np
+
+from src.depth import DepthFeatureExtractor
+from src.utils import deep_merge_dict
+
 
 class SwinTransformerHead(nn.Module):
     def __init__(self, in_size:int=224, in_channel:int=3, out_channel:int=1, device:str='cuda'):
@@ -89,7 +92,7 @@ class PositionEstimator(nn.Module):
         if cfg is None:
             self.cfg = default_cfg
         else:
-            self.cfg = self._merge_cfg(default_cfg, cfg)
+            self.cfg = deep_merge_dict(default_cfg, cfg)
 
         self.DEVICE = DEVICE
 
@@ -144,14 +147,3 @@ class PositionEstimator(nn.Module):
         pos = F.interpolate(pos, (h, w), mode="bilinear", align_corners=True)[0, 0]
         
         return depth.cpu().numpy(), pos.cpu().numpy()
-    
-
-    @staticmethod
-    def _merge_cfg(default: dict, user: dict) -> dict:
-        merged = default.copy()
-        for k, v in user.items():
-            if isinstance(v, dict) and k in merged:
-                merged[k] = PositionEstimator._merge_cfg(merged[k], v)
-            else:
-                merged[k] = v
-        return merged

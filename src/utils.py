@@ -1,8 +1,9 @@
-import cv2
 import numpy as np
 import yaml
 import os
 import logging
+from typing import Any, Mapping, MutableMapping
+import copy
 
 
 def load_config(config_path:str)->dict:
@@ -37,6 +38,28 @@ def setup_logger(log_dir: str):
     logger.addHandler(file_handler)
 
     return logger
+
+
+def deep_merge_dict(default: Mapping[str, Any], user: Mapping[str, Any]) -> dict[str, Any]:
+    """
+    Recursively merge `user` into `default` and return a NEW dict.
+    - default はベース
+    - user は上書き
+    - dict 同士のときだけ再帰的に merge
+    """
+    merged: dict[str, Any] = copy.deepcopy(dict(default))  # default を汚さない
+
+    for k, v in user.items():
+        if (
+            k in merged
+            and isinstance(merged[k], dict)
+            and isinstance(v, Mapping)
+        ):
+            merged[k] = deep_merge_dict(merged[k], v)
+        else:
+            merged[k] = copy.deepcopy(v)  # user 側も参照共有しない
+
+    return merged
 
 
 def perspective_transform(P:np.ndarray, points:np.ndarray)->np.ndarray:
