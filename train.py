@@ -11,16 +11,15 @@ from torch.utils.tensorboard import SummaryWriter
 from schedulefree import AdamWScheduleFree
 import itertools
 
-from src.model import SwinTransformerHead, PositionEstimator
+from src.model import PositionEstimator
 from src.loss import KLDivLoss
 from src.dataloader import PersonPositionDataset
-from src.depth import DepthFeatureExtractor
 from src.augumentation import create_augmentation
 from src.utils import load_config, setup_logger, deep_merge_dict
     
 
 def train(
-    cfg:dict|None=None,
+    cfg:dict,
     save_dir:str,
 ):
     # config 
@@ -171,7 +170,7 @@ if __name__ == "__main__":
     assert os.path.exists(args.config), f"config {args.config} is not exists."
     
     cfg = load_config(args.config)
-    cfg["dataset"] = "train"
+    cfg["positionestimation"]["dataset"] = "train"
 
     # モデル保存フォルダ
     save_dir = os.path.join("runs/trains", datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
@@ -179,5 +178,5 @@ if __name__ == "__main__":
     with open(os.path.join(save_dir, "config.yaml"), "w", encoding="utf-8") as f:
         yaml.safe_dump(cfg, f)
 
-    train(cfg=cfg, save_dir=save_dir)
+    train(cfg=cfg["positionestimation"], save_dir=save_dir)
     

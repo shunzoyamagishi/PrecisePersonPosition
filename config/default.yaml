@@ -2,6 +2,4 @@ persondetection:
   detector_threshold: 0.6
   is_pose: True
 positionestimation:
-  DepthAnythingV2_encoder: "vits"
-  in_size: 224
   pretrain_model: "checkpoints/depthhead.pt"
