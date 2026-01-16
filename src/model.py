@@ -77,10 +77,21 @@ class SwinTransformerHead(nn.Module):
 
 
 class PositionEstimator(nn.Module):
-    def __init__(self, cfg:dict, DEVICE:str='cuda'):
+    def __init__(self, cfg:dict|None=None, DEVICE:str='cuda'):
         super().__init__()
-              
-        self.DEVICE = DEVICE 
+
+        default_cfg = {
+            "DepthAnythingV2_encoder": "vits",
+            "in_size": 224,
+            "pretrain_model": None,
+            "perspective_heatmap" : True
+        }
+        if cfg is None:
+            self.cfg = default_cfg
+        else:
+            self.cfg = self._merge_cfg(default_cfg, cfg)
+
+        self.DEVICE = DEVICE
 
         depthmodel_configs = {
             'vits': {'encoder': 'vits', 'features': 64, 'out_channels': [48, 96, 192, 384]},
@@ -88,7 +99,7 @@ class PositionEstimator(nn.Module):
             'vitl': {'encoder': 'vitl', 'features': 256, 'out_channels': [256, 512, 1024, 1024]},
             'vitg': {'encoder': 'vitg', 'features': 384, 'out_channels': [1536, 1536, 1536, 1536]}
         }
-        encoder = cfg["DepthAnythingV2_encoder"]
+        encoder = self.cfg["DepthAnythingV2_encoder"]
         self.depth_model = DepthFeatureExtractor(**depthmodel_configs[encoder], device=self.DEVICE)
     
         if os.path.isfile(f'Depth_Anything_V2/checkpoints/depth_anything_v2_{encoder}.pth'):
@@ -97,19 +108,18 @@ class PositionEstimator(nn.Module):
         else:
             print(f"Depth Anything V2 Checkpoint depth_anything_v2_{encoder}.pth is not found.")
 
-        if cfg.get("pretrain_model") and os.path.isfile(cfg["pretrain_model"]):
-            ckpt = torch.load(cfg["pretrain_model"], map_location='cpu')
+        if self.cfg.get("pretrain_model") and os.path.isfile(self.cfg["pretrain_model"]):
+            ckpt = torch.load(self.cfg["pretrain_model"], map_location='cpu')
             self.in_size = ckpt.get("in_size", 224)
             self.head = SwinTransformerHead(in_size=self.in_size, in_channel=depthmodel_configs[encoder]['features'], out_channel=2, device=self.DEVICE)
             self.head.load_state_dict(ckpt["model"])
-            print(f"Head checkpoint {cfg["pretrain_model"]} is loaded.")
+            print(f"Head checkpoint {self.cfg['pretrain_model']} is loaded.")
         else:
-            self.in_size = cfg.get("in_size", 224)
+            self.in_size = self.cfg.get("in_size", 224)
             self.head = SwinTransformerHead(in_size=self.in_size, in_channel=depthmodel_configs[encoder]['features'], out_channel=2, device=self.DEVICE)
-      
-        
-        self.depth_model = self.depth_model.to(DEVICE).eval()
-        self.head = self.head.to(DEVICE).eval()
+
+        self.depth_model = self.depth_model.to(self.DEVICE).eval()
+        self.head = self.head.to(self.DEVICE).eval()
 
     def forward(self, x:torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         x = x.to(self.DEVICE)
@@ -124,7 +134,10 @@ class PositionEstimator(nn.Module):
         
         depth, pos = self.forward(image)
 
-        pos = pos[:,0:1] + torch.prod(pos, dim=1, keepdim=True)
+        if self.cfg.get("perspective_heatmap", True):
+            pos = pos[:,0:1] + torch.prod(pos, dim=1, keepdim=True)
+        else:
+            pos = pos[:,0:1]
         pos = self.head.normalize_zscore(pos)
         
         depth = F.interpolate(depth, (h, w), mode="bilinear", align_corners=True)[0, 0]
@@ -133,51 +146,12 @@ class PositionEstimator(nn.Module):
         return depth.cpu().numpy(), pos.cpu().numpy()
     
 
-class PositionEstimator_single(nn.Module):
-    def __init__(self, cfg:dict, DEVICE:str='cuda'):
-        super().__init__()
-        
-        pretrain_path = cfg.get("pretrain_model") if (cfg.get("pretrain_model") and os.path.isfile(cfg["pretrain_model"])) else None
-        
-        self.in_size = int(cfg["in_size"])
-        self.DEVICE = DEVICE 
-
-        depthmodel_configs = {
-            'vits': {'encoder': 'vits', 'features': 64, 'out_channels': [48, 96, 192, 384]},
-            'vitb': {'encoder': 'vitb', 'features': 128, 'out_channels': [96, 192, 384, 768]},
-            'vitl': {'encoder': 'vitl', 'features': 256, 'out_channels': [256, 512, 1024, 1024]},
-            'vitg': {'encoder': 'vitg', 'features': 384, 'out_channels': [1536, 1536, 1536, 1536]}
-        }
-        encoder = cfg["DepthAnythingV2_encoder"]
-        self.depth_model = DepthFeatureExtractor(**depthmodel_configs[encoder], device=self.DEVICE)
-        self.head = SwinTransformerHead(in_size=self.in_size, in_channel=depthmodel_configs['vits']['features'], out_channel=1, device=self.DEVICE)
-
-        if os.path.isfile(f'Depth_Anything_V2/checkpoints/depth_anything_v2_{encoder}.pth'):
-            self.depth_model.load_state_dict(torch.load(f'Depth_Anything_V2/checkpoints/depth_anything_v2_{encoder}.pth', map_location='cpu'))
-        else:
-            print(f"Depth Anything V2 Checkpoint depth_anything_v2_{encoder}.pth is not found.")
-        if pretrain_path:
-            self.head.load_state_dict(torch.load(pretrain_path, map_location='cpu')["model"]) 
-        else:
-            print(f"Checkpoint {cfg.get("pretrain_model")} is not found.")
-        
-        self.depth_model = self.depth_model.to(DEVICE).eval()
-        self.head = self.head.to(DEVICE).eval()
-
-    def forward(self, x:torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        x = x.to(self.DEVICE)
-        feature, depth = self.depth_model.forward(x)
-        pos = self.head.forward(feature)
-        return depth, pos
-    
-    @torch.inference_mode()
-    def inference(self, raw_image: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-        image, (h, w) = self.depth_model.image2tensor(raw_image, self.in_size)
-        
-        depth, pos = self.forward(image)
-        pos = self.head.normalize_zscore(pos)
-        
-        depth = F.interpolate(depth, (h, w), mode="bilinear", align_corners=True)[0, 0]
-        pos = F.interpolate(pos, (h, w), mode="bilinear", align_corners=True)[0, 0]
-        
-        return depth.cpu().numpy(), pos.cpu().numpy()
+    @staticmethod
+    def _merge_cfg(default: dict, user: dict) -> dict:
+        merged = default.copy()
+        for k, v in user.items():
+            if isinstance(v, dict) and k in merged:
+                merged[k] = PositionEstimator._merge_cfg(merged[k], v)
+            else:
+                merged[k] = v
+        return merged

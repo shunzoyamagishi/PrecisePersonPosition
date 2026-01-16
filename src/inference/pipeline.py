@@ -10,14 +10,31 @@ from persondetection import PersonDetectionPipeline
 
 
 class PositionEstimatorPipeline:
-    def __init__(self, cfg:dict, device:str="cuda"):
-        self.detect_pipeline = PersonDetectionPipeline(is_pose=cfg.get("is_pose", False), device=device)
-        self.positionestimator = PositionEstimator(cfg=cfg, DEVICE=device)
+    def __init__(self, cfg: dict | None = None, device: str = "cuda"):
+        default_cfg = {
+            "detector_threshold": 0.3,
+            "is_pose": False,
+            "DepthAnythingV2_encoder": "vits",
+            "in_size": 224,
+            "pretrain_model": "checkpoints/depthhead.pt",
+        }
+        if cfg is None:
+            self.cfg = default_cfg
+        else:
+            self.cfg = self._merge_cfg(default_cfg, cfg)
 
-    def __call__(self, image:np.ndarray|Image.Image)->np.ndarray:
+        self.detect_pipeline = PersonDetectionPipeline(is_pose=self.cfg["is_pose"], device=device)
+        self.positionestimator = PositionEstimator(cfg=self.cfg, DEVICE=device)
+
+
+    def __call__(self, image:np.ndarray|Image.Image)->Tuple[Optional[sv.Detections], Optional[dict], Optional[np.ndarray], np.ndarray]:
+        return self.potisionestimation_inference(image)
+        
+
+    def potisionestimation_inference(self, image:np.ndarray|Image.Image, threshold:float=0.8)->Tuple[Optional[sv.Detections], Optional[dict], Optional[np.ndarray], np.ndarray]:
         if type(image) == np.ndarray:
             image = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
-        detect, kpt, annotatedimage = self.detect_pipeline(image, threshold=0.8)
+        detect, kpt, annotatedimage = self.detect_pipeline(image, threshold=threshold)
         annotatedimage = cv2.cvtColor(np.array(annotatedimage), cv2.COLOR_RGB2BGR)
         if detect is None:
             return None, None, None, annotatedimage
@@ -267,3 +284,14 @@ class PositionEstimatorPipeline:
         cx = float((w * xs).sum() / s)
         cy = float((w * ys).sum() / s)
         return np.array([cx, cy])
+    
+
+    @staticmethod
+    def _merge_cfg(default: dict, user: dict) -> dict:
+        merged = default.copy()
+        for k, v in user.items():
+            if isinstance(v, dict) and k in merged:
+                merged[k] = PositionEstimatorPipeline._merge_cfg(merged[k], v)
+            else:
+                merged[k] = v
+        return merged
