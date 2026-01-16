@@ -101,25 +101,26 @@ class PositionEstimator(nn.Module):
             'vitb': {'encoder': 'vitb', 'features': 128, 'out_channels': [96, 192, 384, 768]},
             'vitl': {'encoder': 'vitl', 'features': 256, 'out_channels': [256, 512, 1024, 1024]},
             'vitg': {'encoder': 'vitg', 'features': 384, 'out_channels': [1536, 1536, 1536, 1536]}
-        }
-        encoder = self.cfg["DepthAnythingV2_encoder"]
-        self.depth_model = DepthFeatureExtractor(**depthmodel_configs[encoder], device=self.DEVICE)
-    
-        if os.path.isfile(f'Depth_Anything_V2/checkpoints/depth_anything_v2_{encoder}.pth'):
-            self.depth_model.load_state_dict(torch.load(f'Depth_Anything_V2/checkpoints/depth_anything_v2_{encoder}.pth', map_location='cpu'))
-            print(f"Depth Anything V2 checkpoint depth_anything_v2_{encoder}.pth is loaded.")
-        else:
-            print(f"Depth Anything V2 Checkpoint depth_anything_v2_{encoder}.pth is not found.")
+        }        
+        self.in_size = self.cfg["in_size"]
+        self.encoder = self.cfg["DepthAnythingV2_encoder"]
 
         if self.cfg.get("pretrain_model") and os.path.isfile(self.cfg["pretrain_model"]):
             ckpt = torch.load(self.cfg["pretrain_model"], map_location='cpu')
-            self.in_size = ckpt.get("in_size", 224)
-            self.head = SwinTransformerHead(in_size=self.in_size, in_channel=depthmodel_configs[encoder]['features'], out_channel=2, device=self.DEVICE)
+            self.in_size = ckpt.get("in_size", self.in_size)
+            self.encoder = ckpt.get("DepthAnythingV2_encoder", self.encoder)
+            self.head = SwinTransformerHead(in_size=self.in_size, in_channel=depthmodel_configs[self.encoder]['features'], out_channel=2, device=self.DEVICE)
             self.head.load_state_dict(ckpt["model"])
             print(f"Head checkpoint {self.cfg['pretrain_model']} is loaded.")
         else:
-            self.in_size = self.cfg.get("in_size", 224)
-            self.head = SwinTransformerHead(in_size=self.in_size, in_channel=depthmodel_configs[encoder]['features'], out_channel=2, device=self.DEVICE)
+            self.head = SwinTransformerHead(in_size=self.in_size, in_channel=depthmodel_configs[self.encoder]['features'], out_channel=2, device=self.DEVICE)
+
+        self.depth_model = DepthFeatureExtractor(**depthmodel_configs[self.encoder], device=self.DEVICE)
+        if os.path.isfile(f'Depth_Anything_V2/checkpoints/depth_anything_v2_{self.encoder}.pth'):
+            self.depth_model.load_state_dict(torch.load(f'Depth_Anything_V2/checkpoints/depth_anything_v2_{self.encoder}.pth', map_location='cpu'))
+            print(f"Depth Anything V2 checkpoint depth_anything_v2_{self.encoder}.pth is loaded.")
+        else:
+            print(f"Depth Anything V2 Checkpoint depth_anything_v2_{self.encoder}.pth is not found.")
 
         self.depth_model = self.depth_model.to(self.DEVICE).eval()
         self.head = self.head.to(self.DEVICE).eval()
