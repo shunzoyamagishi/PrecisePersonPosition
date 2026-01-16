@@ -1,5 +1,5 @@
 persondetection:
-  detector_threshold: 0.6
+  detector_threshold: 0.8
   is_pose: True
 positionestimation:
   pretrain_model: "checkpoints/depthhead.pt"
