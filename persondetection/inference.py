@@ -24,6 +24,7 @@ def persondetection_inference(
     if type(image) == np.ndarray:
         image = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
 
+    imagesize = image.size
     # Detect humans in the image
     inputs = person_image_processor(images=image, return_tensors="pt").to(person_model.device)
 
@@ -60,7 +61,7 @@ def persondetection_inference(
 
     box_annotator = sv.BoxAnnotator(
         color=sv.Color.from_hex('#fcba03'),
-        thickness=1
+        thickness=int(max(1, min(imagesize)//1e3))
     )
     annotated_frame = box_annotator.annotate(
         scene=image.copy(), 
@@ -88,11 +89,11 @@ def persondetection_inference(
 
     edge_annotator = sv.EdgeAnnotator(
         color=sv.Color.from_hex("#73fc03"),
-        thickness=1
+        thickness=int(max(1, min(imagesize)//1e3))
     )
     vertex_annotator = sv.VertexAnnotator(
         color=sv.Color.from_hex('#ff00ff'),
-        radius=2
+        radius=int(max(2, min(imagesize)//5e2))
     )
     
     annotated_frame = edge_annotator.annotate(
@@ -104,5 +105,4 @@ def persondetection_inference(
         key_points=key_points
     )
     
-
     return detections, key_points, annotated_frame

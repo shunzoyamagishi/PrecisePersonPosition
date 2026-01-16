@@ -29,7 +29,7 @@ class PositionEstimatorPipeline:
             self.cfg = deep_merge_dict(default_cfg, cfg)
 
         self.detect_pipeline = PersonDetectionPipeline(cfg=self.cfg["persondetection"], device=device)
-        self.positionestimator = PositionEstimator(cfg=self.cfg["positionestimation"], DEVICE=device)
+        self.positionestimator = PositionEstimator(cfg=self.cfg["positionestimation"], device=device)
 
 
     def __call__(self, image:np.ndarray|Image.Image)->Tuple[Optional[sv.Detections], Optional[dict], Optional[np.ndarray], np.ndarray]:
@@ -39,6 +39,8 @@ class PositionEstimatorPipeline:
     def potisionestimation_inference(self, image:np.ndarray|Image.Image)->Tuple[Optional[sv.Detections], Optional[dict], Optional[np.ndarray], np.ndarray]:
         if type(image) == np.ndarray:
             image = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+        
+        imagesize = image.size
         detect, kpt, annotatedimage = self.detect_pipeline(image)
         annotatedimage = cv2.cvtColor(np.array(annotatedimage), cv2.COLOR_RGB2BGR)
         if detect is None:
@@ -58,13 +60,14 @@ class PositionEstimatorPipeline:
             pred_pt = self.calc_max(pred_result)
             pred_pt = np.array([1/scale, 1/scale])*pred_pt + np.array([x1,y1])
 
+
             annotatedimage = cv2.drawMarker(
                                 img=annotatedimage,
                                 position=pred_pt.astype(np.uint32),
                                 color=sv.Color.from_hex("#fc0303").as_bgr(),
                                 markerType=cv2.MARKER_CROSS,
-                                markerSize=20,
-                                thickness=2,
+                                markerSize=int(max(10, min(imagesize)//40)),
+                                thickness=int(max(1, min(imagesize)//5e2)),
                                 line_type=cv2.LINE_4
                             )
             pred_pts.append(pred_pt)
