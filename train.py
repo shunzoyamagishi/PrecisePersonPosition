@@ -142,7 +142,7 @@ def train(
             logger.info(f"Best model updated (val_loss={best_val_loss:.6f})")
 
         ckpt = {
-            "model": copy.deepcopy(model.state_dict()),
+            "model": copy.deepcopy(model.head.state_dict()),
             "optimizer": optimizer.state_dict(),   # ← AdamWのm/vなどが入る
             "epoch": epoch+1,                        # 次回は epoch+1 から
             "train_loss": avg_train_loss,

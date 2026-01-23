@@ -2,7 +2,6 @@ import cv2
 import numpy as np
 from PIL import Image
 import supervision as sv
-import torch
 from typing import Tuple, Optional
 
 from src.model import PositionEstimator
@@ -21,7 +20,7 @@ class PositionEstimatorPipeline:
                 "DepthAnythingV2_encoder": "vits",
                 "in_size": 224,
                 "pretrain_model": "checkpoints/depthhead.pt",
-            }       
+            },  
         }
         if cfg is None:
             self.cfg = default_cfg
@@ -74,7 +73,7 @@ class PositionEstimatorPipeline:
         
         pred_pts = np.array(pred_pts)
 
-        return detect, kpt, pred_pts, annotatedimage
+        return detect, kpt, pred_pts, pred_result, annotatedimage
     
 
     def crop_input(self, xyxy:np.ndarray, imgsize:Tuple[int, int], pad:float=1.0, allow_shrink:bool=True)->np.ndarray:

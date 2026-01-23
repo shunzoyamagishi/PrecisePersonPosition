@@ -26,7 +26,7 @@ def test(cfg:dict, save_dir:str):
         img, _, _, P = testdataset.__getitem__(i)
         H_image2field = np.linalg.inv(P[:,[0,1,3]]).astype(np.float32)
 
-        detect, kpt, pred_pts, _ = pipeline(img)
+        detect, kpt, pred_pts, _, _ = pipeline(img)
         if detect is None:
             df.loc[len(df)] = [np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan]
         else:
