@@ -73,7 +73,7 @@ class PositionEstimatorPipeline:
         
         pred_pts = np.array(pred_pts)
 
-        return detect, kpt, pred_pts, pred_result, annotatedimage
+        return detect, kpt, pred_pts, annotatedimage
     
 
     def crop_input(self, xyxy:np.ndarray, imgsize:Tuple[int, int], pad:float=1.0, allow_shrink:bool=True)->np.ndarray:
