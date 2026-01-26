@@ -6,9 +6,9 @@ def create_augmentation():
         A.Compose(
             [
                 A.CoarseDropout(
-                    num_holes_range=(1,2),
-                    hole_height_range=(0.05,0.4),
-                    hole_width_range=(0.05,0.4),
+                    num_holes_range=(5,10),
+                    hole_height_range=(0.05,0.1),
+                    hole_width_range=(0.05,0.1),
                     p=1.0
                 ),
                 A.GaussNoise(
@@ -16,15 +16,19 @@ def create_augmentation():
                     per_channel=True,
                     p=1.0
                 ),
-                A.ImageCompression(
-                    quality_range=(90,100),
-                    p=1.0
-                )
             ],
             p=0.25
+        ),
+        A.ImageCompression(
+            quality_range=(60,100),
+            p=0.5
         )
     ],
     keypoint_params=A.KeypointParams(format='xy', remove_invisible=False),
-    bbox_params=A.BboxParams(format="pascal_voc")
+    bbox_params=A.BboxParams(
+            format="pascal_voc", 
+            min_area=0,        # 面積が小さくなっても削除しない
+            min_visibility=0,  # 変換ではみ出しても少しでも残っていれば保
+        )
     )
     return aug

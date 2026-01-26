@@ -68,18 +68,19 @@ class PersonPositionDataset(Dataset):
         P = np.array(item['PerspectiveProjectionMatrix'])
         if self.augmentation:
             augmented = self.augmentation(image=image, keypoints=np.expand_dims(pos_gt,0), bboxes=np.expand_dims(bbox_pref,0))
-            image = augmented["image"]
-            pos_gt = augmented['keypoints'][0]
-            bbox_pref = augmented['bboxes'][0].astype(np.int32)
-            flip_applied = any(
-                t.get("__class_fullname__", "").endswith("HorizontalFlip") and t.get("applied", False)
-                for t in augmented["replay"]["transforms"]
-            )
-            if flip_applied:
-                Hx = np.array([[-1, 0, image.shape[1] - 1],
-                               [ 0, 1, 0],
-                               [ 0, 0, 1]], dtype=float)
-                P = Hx @ P
+            if len(augmented['keypoints']) > 0 and len(augmented['bboxes']) > 0:
+                image = augmented["image"]
+                pos_gt = augmented['keypoints'][0]
+                bbox_pref = augmented['bbox_params'][0].astype(np.int32)
+                flip_applied = any(
+                    t.get("__class_fullname__", "").endswith("HorizontalFlip") and t.get("applied", False)
+                    for t in augmented["replay"]["transforms"]
+                )
+                if flip_applied:
+                    Hx = np.array([[-1, 0, image.shape[1] - 1],
+                                [ 0, 1, 0],
+                                [ 0, 0, 1]], dtype=float)
+                    P = Hx @ P
 
         image = cv2.cvtColor(image,cv2.COLOR_BGR2RGB)
         if self.random_crop:
