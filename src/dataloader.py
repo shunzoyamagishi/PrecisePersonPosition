@@ -78,8 +78,8 @@ class PersonPositionDataset(Dataset):
                 )
                 if flip_applied:
                     Hx = np.array([[-1, 0, image.shape[1] - 1],
-                                [ 0, 1, 0],
-                                [ 0, 0, 1]], dtype=float)
+                                   [ 0, 1, 0],
+                                   [ 0, 0, 1]], dtype=float)
                     P = Hx @ P
 
         image = cv2.cvtColor(image,cv2.COLOR_BGR2RGB)
