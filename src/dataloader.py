@@ -71,7 +71,7 @@ class PersonPositionDataset(Dataset):
             if len(augmented['keypoints']) > 0 and len(augmented['bboxes']) > 0:
                 image = augmented["image"]
                 pos_gt = augmented['keypoints'][0]
-                bbox_pref = augmented['bbox_params'][0].astype(np.int32)
+                bbox_pref = augmented['bboxes'][0].astype(np.int32)
                 flip_applied = any(
                     t.get("__class_fullname__", "").endswith("HorizontalFlip") and t.get("applied", False)
                     for t in augmented["replay"]["transforms"]
