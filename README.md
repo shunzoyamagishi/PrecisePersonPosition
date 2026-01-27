@@ -33,7 +33,7 @@ are saved at `trains/yyyy-mm-dd_hh-mm-ss`.
 
 To check training log:
 ```bash
-tensorboard --logdir=trains/yyyy-mm-dd_hh-mm-ss
+tensorboard --logdir=runs/trains/yyyy-mm-dd_hh-mm-ss
 ```
 
 ## Inference

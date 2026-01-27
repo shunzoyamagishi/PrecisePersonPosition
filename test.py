@@ -20,15 +20,40 @@ def test(cfg:dict, save_dir:str):
     pipeline = PositionEstimatorPipeline(cfg=cfg, device=DEVICE)
     testdataset = TestDataset("data/test")
 
-    df = pd.DataFrame(columns=["lower_f", "mid_f", "bc_bbox", "pred_point", "error_lower_f", "error_mid_f", "error_bc_bbox", "error_pred_point"])
+    columns = [
+        "DistancefromPerson",
+        "TiltAngle",
+        "lower_f",
+        "mid_f",
+        "bc_bbox",
+        "pred_point",
+        "error_lower_f",
+        "error_mid_f",
+        "error_bc_bbox",
+        "error_pred_point",
+    ]
+
+    df = pd.DataFrame(columns=columns)
     
     for i in tqdm(range(len(testdataset)), desc=f"Test : "):
-        img, _, _, P = testdataset.__getitem__(i)
+        img, _, P, attribute = testdataset.__getitem__(i)
         H_image2field = np.linalg.inv(P[:,[0,1,3]]).astype(np.float32)
 
         detect, kpt, pred_pts, _ = pipeline(img)
         if detect is None:
-            df.loc[len(df)] = [np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan]
+            row = {
+                "DistancefromPerson": attribute[0],
+                "TiltAngle": attribute[1],
+                "lower_f": np.nan,
+                "mid_f": np.nan,
+                "bc_bbox": np.nan,
+                "pred_point": np.nan,
+                "error_lower_f": np.nan,
+                "error_mid_f": np.nan,
+                "error_bc_bbox": np.nan,
+                "error_pred_point": np.nan,
+            }
+            df.loc[len(df)] = row
         else:
             bbox = detect.xyxy[np.argmax(detect.confidence)]
             bc_bbox = np.array([bbox[0:3:2].mean(), bbox[3]])
@@ -45,9 +70,24 @@ def test(cfg:dict, save_dir:str):
             pts_fld = cv2.perspectiveTransform(pts_img, H_image2field)
             mid_f, lower_f, bc_bbox, pred_pt = pts_fld[0]
 
-            df.loc[len(df)] = [lower_f, mid_f, bc_bbox, pred_pt, np.linalg.norm(lower_f), np.linalg.norm(mid_f), np.linalg.norm(bc_bbox), np.linalg.norm(pred_pt)]
+            row = {
+                "DistancefromPerson": attribute[0],
+                "TiltAngle": attribute[1],
+                "lower_f": lower_f,
+                "mid_f": mid_f,
+                "bc_bbox": bc_bbox,
+                "pred_point": pred_pt,
+                "error_lower_f": np.linalg.norm(lower_f),
+                "error_mid_f": np.linalg.norm(mid_f),
+                "error_bc_bbox": np.linalg.norm(bc_bbox),
+                "error_pred_point": np.linalg.norm(pred_pt),
+            }
 
-  
+            df.loc[len(df)] = row
+
+
+    df.to_csv(os.path.join(save_dir, 'pred.csv'))
+
     errors = pd.DataFrame({
         "mean": df[["error_lower_f", "error_mid_f", "error_bc_bbox", "error_pred_point"]].mean(),
         "std":  df[["error_lower_f", "error_mid_f", "error_bc_bbox", "error_pred_point"]].std(),
@@ -60,10 +100,9 @@ def test(cfg:dict, save_dir:str):
         "error_pred_point": "pred_point",
     })
 
-    thresholds = [0.1, 0.2, 0.5, 0.8, 1.0, 2.0, 5.0]
-
+    thresholds = [0.1, 0.25, 0.5, 1.0, 2.0]
     for thresh in thresholds:
-        errors[f"acc_{thresh}m"] = None  # 先に列を作る
+        errors[f"acc_{thresh}m"] = None 
 
         for method in errors.index:
             acc = threshold_accuracy_series(
@@ -71,6 +110,21 @@ def test(cfg:dict, save_dir:str):
                 threshold=thresh
             )
             errors.loc[method, f"acc_{thresh}m"] = acc
+
+    for dist in [5, 20, 50]:
+        for angle in [0, 30, 60]:
+            df_subset = df[
+                (df["DistancefromPerson"] == dist) &
+                (df["TiltAngle"] == angle)
+            ]
+            errors[f"{method}_{dist}m_{angle}deg"] = None
+            for thresh in thresholds:
+                for method in errors.index:
+                    acc = threshold_accuracy_series(
+                        df_subset[f"error_{method}"],
+                        threshold=thresh
+                    )
+                    errors.loc[f"{method}_{dist}m_{angle}deg", f"acc_{thresh}m"] = acc
 
     errors.to_csv(os.path.join(save_dir, 'test.csv'))
 

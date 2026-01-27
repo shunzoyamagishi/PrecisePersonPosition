@@ -362,9 +362,35 @@ class PersonPositionDataset_Full(PersonPositionDataset):
 
 
 class TestDataset(PersonPositionDataset):
-    def __init__(self, root_dir:str, input_size:int=224, augmentation:Any=None, random_crop:bool=False):
-        super(TestDataset,self).__init__(root_dir=root_dir, input_size=input_size, augmentation=augmentation, random_crop=random_crop)
+    def __init__(self, root_dir:str, input_size:int=224):
+        self.root_dir = root_dir
+        self.input_size = input_size
+        self.samples = []
+        dist = [5, 20, 50]
+        tilt = [0, 30, 60]
 
+        # フォルダごとに探索
+        for motion_folder in sorted(os.listdir(root_dir)):
+            motion_path = os.path.join(root_dir, motion_folder)
+            if not os.path.isdir(motion_path):
+                continue
+            for video_folder in sorted(os.listdir(motion_path)):
+                dist_index = int(video_folder)//100
+                tilt_index = (int(video_folder)%100)//20
+                
+                video_path = os.path.join(motion_path, video_folder)
+                if not os.path.isdir(video_path):
+                    continue
+                with open(os.path.join(video_path, "data.json"), 'r') as json_data:
+                    data = json.load(json_data)
+
+                for img in data['imgs']:
+                    img['img_name'] = os.path.join(video_path, img['img_name'])
+                    img['PerspectiveProjectionMatrix'] = data["Camera Parameter"]["Perspective Projection Matrix"]
+                    img['distancefromperson'] = dist[dist_index]
+                    img['tiltangle'] = tilt[tilt_index]
+
+                self.samples += data['imgs']
 
     def __len__(self):
         return len(self.samples)
@@ -374,14 +400,8 @@ class TestDataset(PersonPositionDataset):
         item = self.samples[idx]
         image = cv2.imread(item['img_name'])
         pos_gt = np.array(item['pos'])
-        pose_kpt = np.array(item['ViTPose'])[:,0:2] if item['ViTPose'] is not None else None
-        bbox_pref = np.array(item['bbox']) if item['bbox'] is not None else None
         P = np.array(item['PerspectiveProjectionMatrix'])
-        if self.augmentation:
-            augmented = self.augmentation(image=image, keypoints=np.expand_dims(pos_gt,0), bboxes=np.expand_dims(bbox_pref,0))
-            image = augmented["image"]
-            pos_gt = augmented['keypoints'][0]
-            bbox_pref = augmented['bboxes'][0].astype(np.int32)
+        
         image = cv2.cvtColor(image,cv2.COLOR_BGR2RGB)
     
-        return image, pos_gt, pose_kpt, P
+        return image, pos_gt, P, (item['distancefromperson'], item['tiltangle'])
