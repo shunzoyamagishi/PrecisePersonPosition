@@ -2,4 +2,4 @@ persondetection:
   detector_threshold: 0.8
   is_pose: True
 positionestimation:
-  pretrain_model: checkpoints/depthhead.pt"
+  pretrain_model: checkpoints/depthhead.pt

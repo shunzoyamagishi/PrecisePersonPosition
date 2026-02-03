@@ -39,7 +39,7 @@ def test(cfg:dict, save_dir:str):
         img, _, P, attribute = testdataset.__getitem__(i)
         H_image2field = np.linalg.inv(P[:,[0,1,3]]).astype(np.float32)
 
-        detect, kpt, pred_pts, _ = pipeline(img)
+        detect, kpt, pred_pts, _, _ = pipeline(img)
         if detect is None:
             row = {
                 "DistancefromPerson": attribute[0],

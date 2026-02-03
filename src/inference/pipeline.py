@@ -35,13 +35,14 @@ class PositionEstimatorPipeline:
         return self.potisionestimation_inference(image)
         
 
-    def potisionestimation_inference(self, image:np.ndarray|Image.Image)->Tuple[Optional[sv.Detections], Optional[dict], Optional[np.ndarray], np.ndarray]:
+    def potisionestimation_inference(self, image:np.ndarray|Image.Image)->Tuple[Optional[sv.Detections], Optional[dict], Optional[np.ndarray], np.ndarray, np.ndarray]:
         if type(image) == np.ndarray:
             image = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
         
         imagesize = image.size
         detect, kpt, annotatedimage = self.detect_pipeline(image)
         annotatedimage = cv2.cvtColor(np.array(annotatedimage), cv2.COLOR_RGB2BGR)
+        heatmap = np.zeros((imagesize[1], imagesize[0]), dtype=np.float32)
         if detect is None:
             return None, None, None, annotatedimage
         pred_pts = []
@@ -59,6 +60,8 @@ class PositionEstimatorPipeline:
             pred_pt = self.calc_max(pred_result)
             pred_pt = np.array([1/scale, 1/scale])*pred_pt + np.array([x1,y1])
 
+            heatmap_region = cv2.resize(pred_result, dsize=(x2-x1, y2-y1), interpolation=cv2.INTER_CUBIC)
+            heatmap[y1:y2, x1:x2] = np.maximum(heatmap[y1:y2, x1:x2], heatmap_region)
 
             annotatedimage = cv2.drawMarker(
                                 img=annotatedimage,
@@ -73,7 +76,7 @@ class PositionEstimatorPipeline:
         
         pred_pts = np.array(pred_pts)
 
-        return detect, kpt, pred_pts, annotatedimage
+        return detect, kpt, pred_pts, annotatedimage, heatmap/(np.max(heatmap)+1e-12)
     
 
     def crop_input(self, xyxy:np.ndarray, imgsize:Tuple[int, int], pad:float=1.0, allow_shrink:bool=True)->np.ndarray:
@@ -212,6 +215,7 @@ class PositionEstimatorPipeline:
         *,
         normalize: bool = True,
         eps: float = 1e-8,
+        border: int = 7,
         **weight_kwargs,
     ) -> np.ndarray:
         """
@@ -238,6 +242,12 @@ class PositionEstimatorPipeline:
         patch = heatmap[y1:y2, x1:x2].astype(np.float32, copy=False)
         w = self.make_weight(y2 - y1, x2 - x1, **weight_kwargs).astype(np.float32, copy=False)
         mask[y1:y2, x1:x2] = patch * w
+
+        if border > 0:
+            mask[:border, :] = 0
+            mask[-border:, :] = 0
+            mask[:, :border] = 0
+            mask[:, -border:] = 0
 
         if normalize:
             m = mask.mean(dtype=np.float64)

@@ -47,7 +47,7 @@ def inference(path:str, cfg:dict, save_dir:str):
             ret, frame = cap.read()
             if not ret:
                 break
-            _, _, _, annotatedframe = pipeline(frame)
+            _, _, _, annotatedframe, heatmap = pipeline(frame)
             out.write(annotatedframe)
         cap.release()
         out.release()
@@ -58,8 +58,10 @@ def inference(path:str, cfg:dict, save_dir:str):
         if img is None:
             raise ValueError(f"Failed to open the image: {path}")
         output_path = os.path.join(save_dir, f"{os.path.splitext(os.path.basename(path))[0]}.jpg")
-        _, _, _, annotatedimg = pipeline(img)
+        heatmap_path = os.path.join(save_dir, f"{os.path.splitext(os.path.basename(path))[0]}_heatmap.jpg")
+        _, _, _, annotatedimg, heatmap = pipeline(img)
         cv2.imwrite(output_path, annotatedimg)
+        cv2.imwrite(heatmap_path, (heatmap*255).astype(np.uint8))
         print(f"Result has been saved to: {output_path}")
 
 
@@ -89,7 +91,8 @@ if __name__ == "__main__":
 
     cfg = load_config(args.config)
 
-    if not os.path.isdir("runs/inference"):
-        os.makedirs("runs/inference")
+    save_dir = os.path.join("runs/inference", os.path.splitext(os.path.basename(args.input_path))[0])
+    if not os.path.isdir(save_dir):
+        os.makedirs(save_dir)
 
-    inference(path=args.input_path, cfg=cfg, save_dir="runs/inference")
+    inference(path=args.input_path, cfg=cfg, save_dir=save_dir)

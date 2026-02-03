@@ -114,7 +114,7 @@ class PersonPositionDataset(Dataset):
         image = image / 255.0
         image = self.transform({'image': image})['image']
                 
-        return torch.from_numpy(image).clone(), torch.from_numpy(pos.astype(np.float32)).clone(),  torch.from_numpy(heatmap.astype(np.float32)).clone(),torch.from_numpy(P.astype(np.float32)).clone()
+        return torch.from_numpy(image).clone(), torch.from_numpy(pos.astype(np.float32)).clone(), torch.from_numpy(heatmap.astype(np.float32)).clone(), torch.from_numpy(P.astype(np.float32)).clone()
     
 
     def square_crop(self, image:np.ndarray, point:np.ndarray, bbox:list)->tuple[np.ndarray, np.ndarray, int]:
