@@ -43,11 +43,6 @@ def train(
     else:
         cfg = deep_merge_dict(default_cfg, cfg)
     
-    dataset_rootdict = {
-        "train" : "data/train",
-        "full" : "data",
-    }
-    
     input_size = int(cfg["positionestimation"]["in_size"])
     target_std = float(cfg["positionestimation"]["targetstd"])
     batch_size = int(cfg["positionestimation"]["batch"])
@@ -57,6 +52,11 @@ def train(
     # pretrained model
     pretrain_model = cfg['positionestimation'].get("pretrain_model") if (cfg['positionestimation'].get("pretrain_model") and os.path.isfile(cfg['positionestimation'].get("pretrain_model"))) else None
     
+    dataset_rootdict = {
+        "train" : "data/train",
+        "full" : "data",
+    }
+    dataset_rootdir = dataset_rootdict[cfg["dataset"]["mode"]]
 
     seed = 42
     generator = torch.Generator().manual_seed(seed)
@@ -72,7 +72,7 @@ def train(
     writer = SummaryWriter(log_dir=save_dir)
     
     logger.info("Loading Dataset...")
-    dataset = PersonPositionDataset(dataset_rootdict[cfg["dataset"]["mode"]], input_size=input_size, target_std=target_std, augmentation=augmentation)
+    dataset = PersonPositionDataset(dataset_rootdir, input_size=input_size, target_std=target_std, augmentation=augmentation)
     train_size = int(cfg["dataset"]["trainval_split"] * len(dataset))
     val_size   = len(dataset) - train_size
     train_dataset, valid_dataset = random_split(dataset, [train_size, val_size], generator=generator)
