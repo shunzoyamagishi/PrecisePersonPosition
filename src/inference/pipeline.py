@@ -47,7 +47,7 @@ class PositionEstimatorPipeline:
         if detect is None:
             return None, None, None, annotatedimage
         pred_pts = []
-        cropped = self.crop_input(detect.xyxy, image.size, pad=1.2)
+        cropped = self.crop_input(detect.xyxy, image.size, pad=1.5)
         for bbox, square in zip(detect.xyxy, cropped):
             x1, y1, x2, y2 = map(int, square)
             input = image.crop((x1, y1, x2, y2))
@@ -190,7 +190,7 @@ class PositionEstimatorPipeline:
         H: int,
         W: int,
         *,
-        sigma_ratio_x: float = 0.4,
+        sigma_ratio_x: float = 0.3,
         sigma_ratio_y: float = 1.0,
         sharpness_sigmoid: float = 3e-2,
         center_x: Optional[int] = None,

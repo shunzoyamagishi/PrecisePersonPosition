@@ -22,16 +22,42 @@ def train(
     cfg:dict,
     save_dir:str,
 ):
-    # config 
-    input_size = int(cfg["in_size"])
-    target_std = float(cfg["targetstd"])
-    batch_size = int(cfg["batch"])
-    epochs = int(cfg["epoch"])
-    DEVICE1 = f"cuda:{int(cfg["DEVICE1"])}"
-    DEVICE2 = f"cuda:{int(cfg["DEVICE2"])}"
-    # pretrained model
-    pretrain_model = cfg.get("pretrain_model") if (cfg.get("pretrain_model") and os.path.isfile(cfg.get("pretrain_model"))) else None
+    # config
+    default_cfg = {
+        "dataset": {
+            "mode": "train",
+            "trainval_split": 0.8,
+        },
+        "positionestimation":{
+            "DepthAnythingV2_encoder": "vits",
+            "in_size": 224,
+            "targetstd": 5.0,
+            "batch": 8,
+            "epoch": 30,
+            "DEVICE1": 0,
+            "DEVICE2": 0,
+        },  
+    }
+    if cfg is None:
+        cfg = default_cfg
+    else:
+        cfg = deep_merge_dict(default_cfg, cfg)
     
+    dataset_rootdict = {
+        "train" : "data/train",
+        "full" : "data",
+    }
+    
+    input_size = int(cfg["positionestimation"]["in_size"])
+    target_std = float(cfg["positionestimation"]["targetstd"])
+    batch_size = int(cfg["positionestimation"]["batch"])
+    epochs = int(cfg["positionestimation"]["epoch"])
+    DEVICE1 = f"cuda:{int(cfg['positionestimation']['DEVICE1'])}"
+    DEVICE2 = f"cuda:{int(cfg['positionestimation']['DEVICE2'])}"
+    # pretrained model
+    pretrain_model = cfg['positionestimation'].get("pretrain_model") if (cfg['positionestimation'].get("pretrain_model") and os.path.isfile(cfg['positionestimation'].get("pretrain_model"))) else None
+    
+
     seed = 42
     generator = torch.Generator().manual_seed(seed)
 
@@ -46,8 +72,8 @@ def train(
     writer = SummaryWriter(log_dir=save_dir)
     
     logger.info("Loading Dataset...")
-    dataset = PersonPositionDataset("data/train", input_size=input_size, target_std=target_std, augmentation=augmentation)
-    train_size = int(0.8 * len(dataset))
+    dataset = PersonPositionDataset(dataset_rootdict[cfg["dataset"]["mode"]], input_size=input_size, target_std=target_std, augmentation=augmentation)
+    train_size = int(cfg["dataset"]["trainval_split"] * len(dataset))
     val_size   = len(dataset) - train_size
     train_dataset, valid_dataset = random_split(dataset, [train_size, val_size], generator=generator)
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
@@ -147,9 +173,9 @@ def train(
             "epoch": epoch+1,                        # 次回は epoch+1 から
             "train_loss": avg_train_loss,
             "val_loss": avg_val_loss,
-            "DepthAnythingV2_encoder": cfg["DepthAnythingV2_encoder"],
-            "in_size": int(cfg["in_size"]),
-            "targetstd": float(cfg["targetstd"])
+            "DepthAnythingV2_encoder": cfg["positionestimation"]["DepthAnythingV2_encoder"],
+            "in_size": int(cfg["positionestimation"]["in_size"]),
+            "targetstd": float(cfg["positionestimation"]["targetstd"])
         }
         logger.info(f"model saved (val_loss={best_val_loss:.6f})")
         torch.save(
@@ -170,7 +196,6 @@ if __name__ == "__main__":
     assert os.path.exists(args.config), f"config {args.config} is not exists."
     
     cfg = load_config(args.config)
-    cfg["positionestimation"]["dataset"] = "train"
 
     # モデル保存フォルダ
     save_dir = os.path.join("runs/trains", datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
@@ -178,5 +203,5 @@ if __name__ == "__main__":
     with open(os.path.join(save_dir, "config.yaml"), "w", encoding="utf-8") as f:
         yaml.safe_dump(cfg, f)
 
-    train(cfg=cfg["positionestimation"], save_dir=save_dir)
+    train(cfg=cfg, save_dir=save_dir)
     

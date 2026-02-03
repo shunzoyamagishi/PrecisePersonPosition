@@ -38,24 +38,28 @@ class PersonPositionDataset(Dataset):
         ])
         self.samples = [] 
         
-
-        # フォルダごとに探索
-        for motion_folder in sorted(os.listdir(root_dir)):
-            motion_path = os.path.join(root_dir, motion_folder)
-            if not os.path.isdir(motion_path):
+        for dirpath, dirnames, filenames in os.walk(root_dir):
+            dirnames.sort()
+            filenames.sort()
+            if "data.json" not in filenames:
                 continue
-            for video_folder in sorted(os.listdir(motion_path)):
-                video_path = os.path.join(motion_path, video_folder)
-                if not os.path.isdir(video_path):
-                    continue
-                with open(os.path.join(video_path, "data.json"), 'r') as json_data:
-                    data = json.load(json_data)
 
-                for img in data['imgs']:
-                    img['img_name'] = os.path.join(video_path, img['img_name'])
-                    img['PerspectiveProjectionMatrix'] = data["Camera Parameter"]["Perspective Projection Matrix"]
+            video_path = dirpath
+            json_path = os.path.join(video_path, "data.json")
 
-                self.samples += data['imgs']
+            with open(json_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if "imgs" not in data:
+                raise KeyError(f"`imgs` not found in {json_path}")
+            cam_param = data.get("Camera Parameter", {})
+            if cam_param.get("Perspective Projection Matrix", None) is None:
+                raise KeyError(f"`Camera Parameter/Perspective Projection Matrix` not found in {json_path}")
+
+            for img in data['imgs']:
+                img['img_name'] = os.path.join(video_path, img['img_name'])
+                img['PerspectiveProjectionMatrix'] = data["Camera Parameter"]["Perspective Projection Matrix"]
+
+            self.samples += data['imgs']
 
     def __len__(self):
         return len(self.samples)
