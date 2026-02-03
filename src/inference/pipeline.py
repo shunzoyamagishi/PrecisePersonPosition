@@ -1,4 +1,5 @@
 import cv2
+import matplotlib.cm as cm
 import numpy as np
 from PIL import Image
 import supervision as sv
@@ -76,7 +77,10 @@ class PositionEstimatorPipeline:
         
         pred_pts = np.array(pred_pts)
 
-        return detect, kpt, pred_pts, annotatedimage, heatmap/(np.max(heatmap)+1e-12)
+        cmap = cm.get_cmap("viridis")
+        heatmap = cmap(heatmap/(np.max(heatmap)+1e-12))[:, :, :3]  # RGB, drop alpha
+
+        return detect, kpt, pred_pts, annotatedimage, heatmap
     
 
     def crop_input(self, xyxy:np.ndarray, imgsize:Tuple[int, int], pad:float=1.0, allow_shrink:bool=True)->np.ndarray:

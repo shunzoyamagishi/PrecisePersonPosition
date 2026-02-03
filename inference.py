@@ -61,7 +61,9 @@ def inference(path:str, cfg:dict, save_dir:str):
         heatmap_path = os.path.join(save_dir, f"{os.path.splitext(os.path.basename(path))[0]}_heatmap.jpg")
         _, _, _, annotatedimg, heatmap = pipeline(img)
         cv2.imwrite(output_path, annotatedimg)
-        cv2.imwrite(heatmap_path, (heatmap*255).astype(np.uint8))
+        heatmap = cv2.addWeighted(img, 1 - 0.5, (heatmap*255).astype(np.uint8), 0.5, 0)
+        heatmap = cv2.cvtColor(heatmap, cv2.COLOR_RGB2BGR)
+        cv2.imwrite(heatmap_path, heatmap)
         print(f"Result has been saved to: {output_path}")
 
 
