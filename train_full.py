@@ -10,7 +10,7 @@ from torch.utils.tensorboard import SummaryWriter
 from schedulefree import AdamWScheduleFree
 import itertools
 
-from src.model import PositionEstimator
+from model import PositionEstimator
 from src.loss import KLDivLoss
 from src.dataloader import PersonPositionDataset_Full
 from src.augumentation import create_augmentation

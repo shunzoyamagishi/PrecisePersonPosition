@@ -9,7 +9,6 @@ from tqdm import tqdm
 import argparse
 from typing import Tuple, Optional
 
-from src.model import PositionEstimator
 from src.utils import load_config, perspective_transform
 from src.inference import PositionEstimatorPipeline
 from src.dataloader import TestDataset

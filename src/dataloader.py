@@ -319,82 +319,36 @@ class PersonPositionDataset(Dataset):
         return float(r)
     
 
-class PersonPositionDataset_Full(PersonPositionDataset):
-    def __init__(self, root_dir:str, input_size:int=224, target_std:float=5.0, augmentation:Any=None, random_crop:bool=True, heatmap_perspectivetransform:bool=False):
-        self.root_dir = root_dir
-        self.input_size = input_size
-        self.target_std = target_std
-        self.augmentation = augmentation
-        self.random_crop = random_crop
-        self.heatmap_perspectivetransform = heatmap_perspectivetransform
-        self.transform = transforms.Compose([
-            # transforms.ToTensor(),
-            Resize(
-                width=input_size,
-                height=input_size,
-                resize_target=False,
-                keep_aspect_ratio=True,
-                ensure_multiple_of=14,
-                resize_method='lower_bound',
-                image_interpolation_method=cv2.INTER_CUBIC,
-            ),
-            NormalizeImage(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-            PrepareForNet(),
-        ])
-        self.samples = [] 
-        
-        for base_folder in ["train", "val", "test"]:
-            base_path = os.path.join(root_dir, base_folder)
-            if not os.path.isdir(base_path):
-                continue
-            for motion_folder in sorted(os.listdir(base_path)):
-                motion_path = os.path.join(base_path, motion_folder)
-                if not os.path.isdir(motion_path):
-                    continue
-                for video_folder in sorted(os.listdir(motion_path)):
-                    video_path = os.path.join(motion_path, video_folder)
-                    if not os.path.isdir(video_path):
-                        continue
-                    with open(os.path.join(video_path, "data.json"), 'r') as json_data:
-                        data = json.load(json_data)
-
-                    for img in data['imgs']:
-                        img['img_name'] = os.path.join(video_path, img['img_name'])
-                        img['PerspectiveProjectionMatrix'] = data["Camera Parameter"]["Perspective Projection Matrix"]
-
-                    self.samples += data['imgs']
-
-
 class TestDataset(PersonPositionDataset):
     def __init__(self, root_dir:str, input_size:int=224):
         self.root_dir = root_dir
         self.input_size = input_size
         self.samples = []
-        dist = [5, 20, 50]
-        tilt = [0, 30, 60]
-
-        # フォルダごとに探索
-        for motion_folder in sorted(os.listdir(root_dir)):
-            motion_path = os.path.join(root_dir, motion_folder)
-            if not os.path.isdir(motion_path):
+        
+        for dirpath, dirnames, filenames in os.walk(root_dir):
+            dirnames.sort()
+            filenames.sort()
+            if "data.json" not in filenames:
                 continue
-            for video_folder in sorted(os.listdir(motion_path)):
-                dist_index = int(video_folder)//100
-                tilt_index = (int(video_folder)%100)//20
-                
-                video_path = os.path.join(motion_path, video_folder)
-                if not os.path.isdir(video_path):
-                    continue
-                with open(os.path.join(video_path, "data.json"), 'r') as json_data:
-                    data = json.load(json_data)
 
-                for img in data['imgs']:
+            video_path = dirpath
+            json_path = os.path.join(video_path, "data.json")
+
+            with open(json_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if "imgs" not in data:
+                raise KeyError(f"`imgs` not found in {json_path}")
+            cam_param = data.get("Camera Parameter", {})
+            if cam_param.get("Perspective Projection Matrix", None) is None:
+                raise KeyError(f"`Camera Parameter/Perspective Projection Matrix` not found in {json_path}")
+
+            for img in data['imgs']:
                     img['img_name'] = os.path.join(video_path, img['img_name'])
                     img['PerspectiveProjectionMatrix'] = data["Camera Parameter"]["Perspective Projection Matrix"]
-                    img['distancefromperson'] = dist[dist_index]
-                    img['tiltangle'] = tilt[tilt_index]
+                    img['distancefromperson'] = data["Camera Parameter"]["Distance from Player"]
+                    img['tiltangle'] = data["Camera Parameter"]["Tilt wrt Field"]
+            self.samples += data['imgs']
 
-                self.samples += data['imgs']
 
     def __len__(self):
         return len(self.samples)

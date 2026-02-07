@@ -219,7 +219,7 @@ class PositionEstimatorPipeline:
         *,
         normalize: bool = True,
         eps: float = 1e-8,
-        border: int = 7,
+        border: int = 8,
         **weight_kwargs,
     ) -> np.ndarray:
         """

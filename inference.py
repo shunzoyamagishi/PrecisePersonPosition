@@ -8,7 +8,6 @@ from typing import Tuple, Optional
 from PIL import Image
 from tqdm import tqdm
 
-from src.model import PositionEstimator
 from src.utils import load_config
 from src.inference import PositionEstimatorPipeline
 
