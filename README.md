@@ -18,11 +18,11 @@ pip install -r requirements.txt
 
 ## Train
 ```bash
-python train.py --config config/default.yaml
+python train.py
 ```
 To train full dataset:
 ```bash
-python train_full.py --config config/default.yaml
+python train.py --config config/default_trainfull.yaml
 ```
 
 - `config.yaml` (copy of config file)
@@ -33,14 +33,18 @@ are saved at `trains/yyyy-mm-dd_hh-mm-ss`.
 
 To check training log:
 ```bash
-tensorboard --logdir=trains/yyyy-mm-dd_hh-mm-ss
+tensorboard --logdir=runs/trains/yyyy-mm-dd_hh-mm-ss
 ```
 
 ## Inference
 ```bash
-python inference.py image/video_path --config config/default_inference.yaml
+python inference.py image/video_path
 ```
 
+## Test
+```bash
+python test.py
+```
 ## Dataset
 
 data/　　  

@@ -1,0 +1,6 @@
+persondetection:
+  detector_threshold: 0.8
+  is_pose: True
+positionestimation:
+  pretrain_model: runs/train/2026-02-07_05-26-52/model_epoch30.pt
+  perspective_heatmap: True

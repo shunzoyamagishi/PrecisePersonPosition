@@ -6,7 +6,7 @@
 	"image": "mcr.microsoft.com/devcontainers/python:2-3.14-trixie",
 	// "image": "mcr.microsoft.com/devcontainers/python:1-3.12-bookworm",
 
-	"runArgs": ["--gpus", "all"],
+	"runArgs": ["--gpus", "all", "--name", "yamagishi-ppp-devcontainer"],
 
 	// Features to add to the dev container. More info: https://containers.dev/features.
 	// "features": {}

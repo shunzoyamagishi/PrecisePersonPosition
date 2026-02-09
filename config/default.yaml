@@ -1,10 +1,5 @@
-in_size: 224
-epoch: 30
-batch: 8
-model: "SwinHead"
-DepthAnythingV2_encoder: "vits"
-targetstd: 5.0
-pretrain_model: None 
-augmentation: True
-DEVICE1: 0
-DEVICE2: 0
+persondetection:
+  detector_threshold: 0.8
+  is_pose: True
+positionestimation:
+  pretrain_model: checkpoints/depthhead.pt
