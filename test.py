@@ -34,10 +34,14 @@ def test(cfg:dict, save_dir:str):
                 "image": attribute[0],
                 "DistancefromPerson": attribute[1],
                 "TiltAngle": attribute[2],
-                "lower_f": np.nan,
-                "mid_f": np.nan,
-                "bc_bbox": np.nan,
-                "pred_point": np.nan,
+                "lower_f(image)": np.nan,
+                "mid_f(image)": np.nan,
+                "bc_bbox(image)": np.nan,
+                "pred_point(image)": np.nan,
+                "lower_f(field)": np.nan,
+                "mid_f(field)": np.nan,
+                "bc_bbox(field)": np.nan,
+                "pred_point(field)": np.nan,
                 "error_lower_f": np.nan,
                 "error_mid_f": np.nan,
                 "error_bc_bbox": np.nan,
@@ -56,22 +60,25 @@ def test(cfg:dict, save_dir:str):
             else:
                 lower_f = right_f
 
-            pts_img = np.array([mid_f, lower_f, bc_bbox, pred_pt], dtype=np.float32).reshape(1,-1,2)
+            pts_img = np.array([lower_f, mid_f, bc_bbox, pred_pt], dtype=np.float32).reshape(1,-1,2)
             pts_fld = cv2.perspectiveTransform(pts_img, H_image2field)
-            mid_f, lower_f, bc_bbox, pred_pt = pts_fld[0]
 
             row = {
                 "image": attribute[0],
                 "DistancefromPerson": attribute[1],
                 "TiltAngle": attribute[2],
-                "lower_f": lower_f,
-                "mid_f": mid_f,
-                "bc_bbox": bc_bbox,
-                "pred_point": pred_pt,
-                "error_lower_f": np.linalg.norm(lower_f),
-                "error_mid_f": np.linalg.norm(mid_f),
-                "error_bc_bbox": np.linalg.norm(bc_bbox),
-                "error_pred_point": np.linalg.norm(pred_pt),
+                "lower_f(image)": lower_f,
+                "mid_f(image)": mid_f,
+                "bc_bbox(image)": bc_bbox,
+                "pred_point(image)": pred_pt,
+                "lower_f(field)": pts_fld[0][0],
+                "mid_f(field)": pts_fld[0][1],
+                "bc_bbox(field)": pts_fld[0][2],
+                "pred_point(field)": pts_fld[0][3],
+                "error_lower_f": np.linalg.norm(pts_fld[0][0]),
+                "error_mid_f": np.linalg.norm(pts_fld[0][1]),
+                "error_bc_bbox": np.linalg.norm(pts_fld[0][2]),
+                "error_pred_point": np.linalg.norm(pts_fld[0][3]),
             }
 
             pred_result.append(row)
