@@ -7,6 +7,7 @@ import argparse
 from typing import Tuple, Optional
 from PIL import Image
 from tqdm import tqdm
+import yaml
 
 from src.utils import load_config
 from src.inference import PositionEstimatorPipeline
@@ -28,6 +29,8 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def inference(path:str, cfg:dict, save_dir:str):    
     pipeline = PositionEstimatorPipeline(cfg=cfg, device=DEVICE)
+    with open(os.path.join(save_dir, "config.yaml"), "w", encoding="utf-8") as f:
+        yaml.safe_dump(pipeline.cfg, f)
 
     if is_video(path):
         cap = cv2.VideoCapture(path)

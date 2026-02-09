@@ -19,20 +19,10 @@ def test(cfg:dict, save_dir:str):
     pipeline = PositionEstimatorPipeline(cfg=cfg, device=DEVICE)
     testdataset = TestDataset("data/test")
 
-    columns = [
-        "DistancefromPerson",
-        "TiltAngle",
-        "lower_f",
-        "mid_f",
-        "bc_bbox",
-        "pred_point",
-        "error_lower_f",
-        "error_mid_f",
-        "error_bc_bbox",
-        "error_pred_point",
-    ]
+    with open(os.path.join(save_dir, "config.yaml"), "w", encoding="utf-8") as f:
+        yaml.safe_dump(pipeline.cfg, f)
 
-    df = pd.DataFrame(columns=columns)
+    pred_result = []
     
     for i in tqdm(range(len(testdataset)), desc=f"Test : "):
         img, _, P, attribute = testdataset.__getitem__(i)
@@ -41,8 +31,9 @@ def test(cfg:dict, save_dir:str):
         detect, kpt, pred_pts, _, _ = pipeline(img)
         if detect is None:
             row = {
-                "DistancefromPerson": attribute[0],
-                "TiltAngle": attribute[1],
+                "image": attribute[0],
+                "DistancefromPerson": attribute[1],
+                "TiltAngle": attribute[2],
                 "lower_f": np.nan,
                 "mid_f": np.nan,
                 "bc_bbox": np.nan,
@@ -52,7 +43,7 @@ def test(cfg:dict, save_dir:str):
                 "error_bc_bbox": np.nan,
                 "error_pred_point": np.nan,
             }
-            df.loc[len(df)] = row
+            pred_result.append(row)
         else:
             bbox = detect.xyxy[np.argmax(detect.confidence)]
             bc_bbox = np.array([bbox[0:3:2].mean(), bbox[3]])
@@ -70,8 +61,9 @@ def test(cfg:dict, save_dir:str):
             mid_f, lower_f, bc_bbox, pred_pt = pts_fld[0]
 
             row = {
-                "DistancefromPerson": attribute[0],
-                "TiltAngle": attribute[1],
+                "image": attribute[0],
+                "DistancefromPerson": attribute[1],
+                "TiltAngle": attribute[2],
                 "lower_f": lower_f,
                 "mid_f": mid_f,
                 "bc_bbox": bc_bbox,
@@ -82,9 +74,9 @@ def test(cfg:dict, save_dir:str):
                 "error_pred_point": np.linalg.norm(pred_pt),
             }
 
-            df.loc[len(df)] = row
+            pred_result.append(row)
 
-
+    df = pd.DataFrame(pred_result)
     df.to_csv(os.path.join(save_dir, 'pred.csv'))
 
     errors = pd.DataFrame({
@@ -101,35 +93,41 @@ def test(cfg:dict, save_dir:str):
 
     thresholds = [0.1, 0.25, 0.5, 1.0, 2.0]
     for thresh in thresholds:
-        errors[f"acc_{thresh}m"] = None 
+        errors[f"acc@{thresh}m"] = np.nan
 
         for method in errors.index:
             acc = threshold_accuracy_series(
                 df[f"error_{method}"],
                 threshold=thresh
             )
-            errors.loc[method, f"acc_{thresh}m"] = acc
+            errors.loc[method, f"acc@{thresh}m"] = acc
 
     for dist in [5, 20, 50]:
         for angle in [0, 30, 60]:
-            df_subset = df[
-                (df["DistancefromPerson"] == dist) &
-                (df["TiltAngle"] == angle)
-            ]
-            errors[f"{method}_{dist}m_{angle}deg"] = None
+            df_subset = df.query(f"DistancefromPerson=={dist} & TiltAngle=={angle}")
+            for method in errors.index:
+                errors.loc[method, f"mean(dist={dist}m,tilt={angle}deg)"] = df_subset[f"error_{method}"].mean()
+                errors.loc[method, f"std(dist={dist}m,tilt={angle}deg)"] = df_subset[f"error_{method}"].std()
             for thresh in thresholds:
+                errors[f"acc@{thresh}m(dist={dist}m,tilt={angle}deg)"] = np.nan
                 for method in errors.index:
-                    acc = threshold_accuracy_series(
-                        df_subset[f"error_{method}"],
-                        threshold=thresh
-                    )
-                    errors.loc[f"{method}_{dist}m_{angle}deg", f"acc_{thresh}m"] = acc
-
+                    if len(df_subset):
+                        acc = threshold_accuracy_series(
+                            df_subset[f"error_{method}"],
+                            threshold=thresh
+                        )
+                        errors.loc[method, f"acc@{thresh}m(dist={dist}m,tilt={angle}deg)"] = acc
+              
     errors.to_csv(os.path.join(save_dir, 'test.csv'))
+    with pd.option_context(
+        'display.max_rows', None,
+        'display.max_columns', None,
+        'display.width', None
+    ):
+        print(errors.iloc[:, [0,2,3,4,5,6]])
 
 
 def threshold_accuracy_series(s_pred: pd.Series, threshold: float=0.5) -> float:
-    
     return float((s_pred<threshold).sum()/s_pred.size)
 
 
@@ -144,7 +142,5 @@ if __name__ == "__main__":
 
     save_dir = os.path.join("runs/test", datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
     os.makedirs(save_dir, exist_ok=True)
-    with open(os.path.join(save_dir, "config.yaml"), "w", encoding="utf-8") as f:
-        yaml.safe_dump(cfg, f)
 
     test(cfg=cfg, save_dir=save_dir)

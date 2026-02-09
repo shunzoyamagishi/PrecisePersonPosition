@@ -354,7 +354,7 @@ class TestDataset(PersonPositionDataset):
         return len(self.samples)
     
 
-    def __getitem__(self, idx)->tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    def __getitem__(self, idx)->tuple[np.ndarray, np.ndarray, np.ndarray, tuple[str, int, int]]:
         item = self.samples[idx]
         image = cv2.imread(item['img_name'])
         pos_gt = np.array(item['pos'])
@@ -362,4 +362,4 @@ class TestDataset(PersonPositionDataset):
         
         image = cv2.cvtColor(image,cv2.COLOR_BGR2RGB)
     
-        return image, pos_gt, P, (item['distancefromperson'], item['tiltangle'])
+        return image, pos_gt, P, (item['img_name'], item['distancefromperson'], item['tiltangle'])

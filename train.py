@@ -24,19 +24,22 @@ def train(
 ):
     # config
     default_cfg = {
-        "dataset": {
-            "mode": "train",
-            "trainval_split": 0.8,
-        },
         "positionestimation":{
             "DepthAnythingV2_encoder": "vits",
+            "head": "swintransformer",
             "in_size": 224,
             "targetstd": 5.0,
-            "batch": 8,
-            "epoch": 30,
             "DEVICE1": 0,
             "DEVICE2": 0,
-        },  
+        }, 
+        "train":{
+            "batch": 8,
+            "epoch": 30,
+            "dataset": {
+                "mode": "train",
+                "trainval_split": 0.8,
+            },
+        }
     }
     if cfg is None:
         cfg = default_cfg
@@ -45,10 +48,10 @@ def train(
     
     input_size = int(cfg["positionestimation"]["in_size"])
     target_std = float(cfg["positionestimation"]["targetstd"])
-    batch_size = int(cfg["positionestimation"]["batch"])
-    epochs = int(cfg["positionestimation"]["epoch"])
     DEVICE1 = f"cuda:{int(cfg['positionestimation']['DEVICE1'])}"
     DEVICE2 = f"cuda:{int(cfg['positionestimation']['DEVICE2'])}"
+    batch_size = int(cfg["train"]["batch"])
+    epochs = int(cfg["train"]["epoch"])
     # pretrained model
     pretrain_model = cfg['positionestimation'].get("pretrain_model") if (cfg['positionestimation'].get("pretrain_model") and os.path.isfile(cfg['positionestimation'].get("pretrain_model"))) else None
     
@@ -56,7 +59,7 @@ def train(
         "train" : "data/train",
         "full" : "data",
     }
-    dataset_rootdir = dataset_rootdict[cfg["dataset"]["mode"]]
+    dataset_rootdir = dataset_rootdict[cfg["train"]["dataset"]["mode"]]
 
     seed = 42
     generator = torch.Generator().manual_seed(seed)
@@ -73,7 +76,7 @@ def train(
     
     logger.info("Loading Dataset...")
     dataset = PersonPositionDataset(dataset_rootdir, input_size=input_size, target_std=target_std, augmentation=augmentation)
-    train_size = int(cfg["dataset"]["trainval_split"] * len(dataset))
+    train_size = int(cfg["train"]["dataset"]["trainval_split"] * len(dataset))
     val_size   = len(dataset) - train_size
     train_dataset, valid_dataset = random_split(dataset, [train_size, val_size], generator=generator)
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
@@ -83,6 +86,10 @@ def train(
     model = PositionEstimator(cfg=cfg)
     model.depth_model.to(DEVICE2).eval()
     model.head.to(DEVICE1).train()
+    cfg["positionestimation"] = deep_merge_dict(cfg["positionestimation"], model.cfg)
+
+    with open(os.path.join(save_dir, "config.yaml"), "w", encoding="utf-8") as f:
+        yaml.safe_dump(cfg, f)
     
     # optimizer
     optimizer = AdamWScheduleFree(model.parameters())
@@ -92,12 +99,10 @@ def train(
     best_val_loss = float("inf")
                              
     if pretrain_model is not None and os.path.isfile(pretrain_model):
-        ckpt = torch.load(pretrain_model, map_location='cpu')
-        model.head.load_state_dict(ckpt["model"]) 
         optimizer.load_state_dict(ckpt["optimizer"]) 
         start_epoch = ckpt.get("epoch", -1)      
         best_train_loss = ckpt.get("best_train", float("inf"))
-        logger.info(f"Loaded pretrained model: {pretrain_model}")
+        # logger.info(f"Loaded pretrained model: {pretrain_model}")
 
     best_model_weights = None
 
@@ -201,8 +206,6 @@ if __name__ == "__main__":
     # モデル保存フォルダ
     save_dir = os.path.join("runs/train", datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
     os.makedirs(save_dir, exist_ok=True)
-    with open(os.path.join(save_dir, "config.yaml"), "w", encoding="utf-8") as f:
-        yaml.safe_dump(cfg, f)
 
     train(cfg=cfg, save_dir=save_dir)
     

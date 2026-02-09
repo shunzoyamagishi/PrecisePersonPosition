@@ -30,7 +30,8 @@ class PositionEstimatorPipeline:
 
         self.detect_pipeline = PersonDetectionPipeline(cfg=self.cfg["persondetection"], device=device)
         self.positionestimator = PositionEstimator(cfg=self.cfg["positionestimation"], device=device)
-
+        self.cfg["persondetection"] = deep_merge_dict(self.cfg["persondetection"], self.detect_pipeline.cfg)
+        self.cfg["positionestimation"] = deep_merge_dict(self.cfg["positionestimation"], self.positionestimator.cfg)
 
     def __call__(self, image:np.ndarray|Image.Image)->Tuple[Optional[sv.Detections], Optional[dict], Optional[np.ndarray], np.ndarray]:
         return self.potisionestimation_inference(image)
@@ -51,8 +52,8 @@ class PositionEstimatorPipeline:
         for bbox, square in zip(detect.xyxy, cropped):
             x1, y1, x2, y2 = map(int, square)
             input = image.crop((x1, y1, x2, y2))
-            input = input.resize((self.positionestimator.in_size, self.positionestimator.in_size))
-            scale = self.positionestimator.in_size/(x2-x1)
+            input = input.resize((self.positionestimator.cfg["in_size"], self.positionestimator.cfg["in_size"]))
+            scale = self.positionestimator.cfg["in_size"]/(x2-x1)
 
             depth_result, pred_result = self.positionestimator.inference(np.array(input))
             mask_region = (scale*(bbox- np.tile([x1,y1],2))).astype(np.uint32)
