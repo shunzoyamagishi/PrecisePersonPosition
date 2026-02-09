@@ -11,10 +11,8 @@ from torch.utils.tensorboard import SummaryWriter
 from schedulefree import AdamWScheduleFree
 import itertools
 
-from model.model import PositionEstimator
-from src.loss import KLDivLoss
-from src.dataloader import PersonPositionDataset
-from src.augumentation import create_augmentation
+from src.model import PositionEstimator
+from src.train import PersonPositionDataset, KLDivLoss, create_augmentation
 from src.utils import load_config, setup_logger, deep_merge_dict
     
 

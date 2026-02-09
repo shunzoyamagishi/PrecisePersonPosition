@@ -9,9 +9,9 @@ from tqdm import tqdm
 import argparse
 from typing import Tuple, Optional
 
-from src.utils import load_config, perspective_transform
+from src.utils import load_config
 from src.inference import PositionEstimatorPipeline
-from src.dataloader import TestDataset
+from src.test import TestDataset
 
 
 def test(cfg:dict, save_dir:str):
