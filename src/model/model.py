@@ -8,6 +8,9 @@ import numpy as np
 
 from .depth import DepthFeatureExtractor
 from .swintransformerhead import SwinTransformerHead
+from .transformerhead import SwinTransformerHead as SwinTransformerHead_Old
+from .transformerunet import SwinTransformerUNet
+from .convnexthead import ConvNeXtHead
 
 from src.utils import deep_merge_dict
 
@@ -18,6 +21,7 @@ class PositionEstimator(nn.Module):
 
         default_cfg = {
             "DepthAnythingV2_encoder": "vits",
+            "head": "swintransformer",
             "in_size": 224,
             "pretrain_model": None,
             "perspective_heatmap" : True
@@ -37,18 +41,31 @@ class PositionEstimator(nn.Module):
         }        
         self.in_size = self.cfg["in_size"]
         self.encoder = self.cfg["DepthAnythingV2_encoder"]
+        self.headname = self.cfg["head"]
 
         if self.cfg.get("pretrain_model") and os.path.isfile(self.cfg["pretrain_model"]):
             ckpt = torch.load(self.cfg["pretrain_model"], map_location='cpu')
             self.in_size = ckpt.get("in_size", self.in_size)
             self.encoder = ckpt.get("DepthAnythingV2_encoder", self.encoder)
+            self.headname = ckpt.get("model_name", self.headname)
             # self.head = SwinTransformerHead(in_size=self.in_size, in_channel=depthmodel_configs[self.encoder]['features'], out_channel=2, device=self.device)
-            self.head = SwinTransformerHead(in_size=self.in_size, in_channel=depthmodel_configs[self.encoder]['features'], out_channel=2, device=self.device)
+            self.head = self.build_head(
+                model_name=self.headname,
+                in_channel=depthmodel_configs[self.encoder]['features'],
+                in_size=self.in_size,
+                out_channel=2,
+                device=self.device
+            )
             self.head.load_state_dict(ckpt["model"])
             print(f"Head checkpoint {self.cfg['pretrain_model']} is loaded.")
         else:
-            # self.head = SwinTransformerHead(in_size=self.in_size, in_channel=depthmodel_configs[self.encoder]['features'], out_channel=2, device=self.device)
-            self.head = SwinTransformerHead(in_size=self.in_size, in_channel=depthmodel_configs[self.encoder]['features'], out_channel=2, device=self.device)
+            self.head = self.build_head(
+                model_name=self.headname,
+                in_channel=depthmodel_configs[self.encoder]['features'],
+                in_size=self.in_size,
+                out_channel=2,
+                device=self.device
+            )
         self.depth_model = DepthFeatureExtractor(**depthmodel_configs[self.encoder], device=self.device)
         if os.path.isfile(f'Depth_Anything_V2/checkpoints/depth_anything_v2_{self.encoder}.pth'):
             self.depth_model.load_state_dict(torch.load(f'Depth_Anything_V2/checkpoints/depth_anything_v2_{self.encoder}.pth', map_location='cpu'))
@@ -66,6 +83,24 @@ class PositionEstimator(nn.Module):
 
         return depth, pos
     
+    def build_head(self, *, model_name: str, in_channel: int, in_size: int, out_channel: int, device: str):
+        MODEL_REGISTRY = {
+            "swintransformer": SwinTransformerHead,
+            "swintransformerunet": SwinTransformerUNet,
+            "convnext": ConvNeXtHead,
+            "old": SwinTransformerHead_Old,
+        }
+        if model_name not in MODEL_REGISTRY:
+            raise ValueError(f"Unknown model_name={model_name}. choices={list(MODEL_REGISTRY)}")
+        
+        cls = MODEL_REGISTRY[model_name]
+        return cls(
+            in_size=in_size,
+            in_channel=in_channel,
+            out_channel=out_channel,
+            device=device,
+        )
+
     @torch.inference_mode()
     def inference(self, raw_image: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         image, (h, w) = self.depth_model.image2tensor(raw_image, self.in_size)
@@ -82,3 +117,4 @@ class PositionEstimator(nn.Module):
         pos = F.interpolate(pos, (h, w), mode="bilinear", align_corners=True)[0, 0]
         
         return depth.cpu().numpy(), pos.cpu().numpy()
+    

@@ -11,7 +11,7 @@ from torch.utils.tensorboard import SummaryWriter
 from schedulefree import AdamWScheduleFree
 import itertools
 
-from src.model import PositionEstimator
+from model.model import PositionEstimator
 from src.loss import KLDivLoss
 from src.dataloader import PersonPositionDataset
 from src.augumentation import create_augmentation
@@ -168,6 +168,7 @@ def train(
             logger.info(f"Best model updated (val_loss={best_val_loss:.6f})")
 
         ckpt = {
+            "modelname": model.headname,
             "model": copy.deepcopy(model.head.state_dict()),
             "optimizer": optimizer.state_dict(),   # ← AdamWのm/vなどが入る
             "epoch": epoch+1,                        # 次回は epoch+1 から

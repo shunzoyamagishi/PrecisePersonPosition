@@ -5,7 +5,7 @@ import torchvision
 from torchvision.models import convnext_tiny, ConvNeXt_Tiny_Weights
 
 
-class ConvNeXtSegHead(nn.Module):
+class ConvNeXtHead(nn.Module):
     def __init__(self, in_size:int=224, in_channel:int=3, out_channel:int=1, embedding_dim:int=128, device:str='cuda'):
         """
         ConvNeXt Tiny Backbone + SegFormer (All-MLP) Head

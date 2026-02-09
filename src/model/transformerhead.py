@@ -28,31 +28,31 @@ class SwinTransformerHead(nn.Module):
 
         self.layersize = self._calc_layersize()
 
-        # self.head = nn.Sequential(
-        #     torchvision.ops.misc.Permute(dims=[0,3,1,2]),
-        #     nn.ConvTranspose2d(in_channels=96*8, out_channels=out_channel, kernel_size=(8,8), stride=(8,8)),
-        #     nn.BatchNorm2d(num_features=out_channel)
-        # )
         self.head = nn.Sequential(
-            torchvision.ops.misc.Permute(dims=[0,3,1,2]),  # (B,C,H,W)
-
-            nn.Upsample(scale_factor=2, mode="bilinear", align_corners=False),
-            nn.Conv2d(96*8, 256, 3, padding=1, bias=False),
-            nn.GroupNorm(32, 256),
-            nn.GELU(),
-
-            nn.Upsample(scale_factor=2, mode="bilinear", align_corners=False),
-            nn.Conv2d(256, 128, 3, padding=1, bias=False),
-            nn.GroupNorm(32, 128),
-            nn.GELU(),
-
-            nn.Upsample(scale_factor=2, mode="bilinear", align_corners=False),
-            nn.Conv2d(128, 64, 3, padding=1, bias=False),
-            nn.GroupNorm(16, 64),
-            nn.GELU(),
-
-            nn.Conv2d(64, out_channel, 1)
+            torchvision.ops.misc.Permute(dims=[0,3,1,2]),
+            nn.ConvTranspose2d(in_channels=96*8, out_channels=out_channel, kernel_size=(8,8), stride=(8,8)),
+            nn.BatchNorm2d(num_features=out_channel)
         )
+        # self.head = nn.Sequential(
+        #     torchvision.ops.misc.Permute(dims=[0,3,1,2]),  # (B,C,H,W)
+
+        #     nn.Upsample(scale_factor=2, mode="bilinear", align_corners=False),
+        #     nn.Conv2d(96*8, 256, 3, padding=1, bias=False),
+        #     nn.GroupNorm(32, 256),
+        #     nn.GELU(),
+
+        #     nn.Upsample(scale_factor=2, mode="bilinear", align_corners=False),
+        #     nn.Conv2d(256, 128, 3, padding=1, bias=False),
+        #     nn.GroupNorm(32, 128),
+        #     nn.GELU(),
+
+        #     nn.Upsample(scale_factor=2, mode="bilinear", align_corners=False),
+        #     nn.Conv2d(128, 64, 3, padding=1, bias=False),
+        #     nn.GroupNorm(16, 64),
+        #     nn.GELU(),
+
+        #     nn.Conv2d(64, out_channel, 1)
+        # )
 
         self.device = device
         self.to(device)

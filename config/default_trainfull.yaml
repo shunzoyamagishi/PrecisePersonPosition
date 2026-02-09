@@ -3,6 +3,7 @@ dataset:
   trainval_split: 1.0
 persondetection: None
 positionestimation:
+  head: "swintransformer"
   in_size: 224
   epoch: 30
   batch: 8

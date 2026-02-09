@@ -41,7 +41,7 @@ class DecoderBlock(nn.Module):
         return x
 
 
-class SwinTransformerUNetHead(nn.Module):
+class SwinTransformerUNet(nn.Module):
     def __init__(self, in_size:int=224, in_channel:int=3, out_channel:int=1, device:str='cuda'):
         """
         Swin Transformer Encoder + U-Net style Decoder
