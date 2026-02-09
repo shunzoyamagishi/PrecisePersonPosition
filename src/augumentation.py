@@ -19,11 +19,6 @@ def create_augmentation():
         #     ],
         #     p=0.25
         # ),
-        A.GaussNoise(
-            std_range = (0.2, 0.4),
-            per_channel=True,
-            p=0.2
-        ),
         A.ImageCompression(
             quality_range=(60,100),
             p=0.5

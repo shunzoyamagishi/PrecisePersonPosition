@@ -45,7 +45,7 @@ class PositionEstimatorPipeline:
         annotatedimage = cv2.cvtColor(np.array(annotatedimage), cv2.COLOR_RGB2BGR)
         heatmap = np.zeros((imagesize[1], imagesize[0]), dtype=np.float32)
         if detect is None:
-            return None, None, None, annotatedimage
+            return None, None, None, annotatedimage, heatmap
         pred_pts = []
         cropped = self.crop_input(detect.xyxy, image.size, pad=1.5)
         for bbox, square in zip(detect.xyxy, cropped):

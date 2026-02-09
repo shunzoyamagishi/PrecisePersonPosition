@@ -46,9 +46,9 @@ class SwinTransformerHead(nn.Module):
         # Swinは最後のGlobal Average Pooling手前までを使用
         # 出力サイズ: (B, H/32, W/32, 768)
         # self.encoder = swin.features
-        self.encoder = swin.features[0:2]
+        self.encoder = swin.features[0:4]
         # self.norm = swin.norm 
-        self.norm = nn.LayerNorm(96)
+        self.norm = nn.LayerNorm(192)
 
         # --- Decoder (Gradual Upsampling) ---
         # Swin-Tの最終出力は 768ch, サイズは 1/32 (224pxなら7x7)
@@ -60,7 +60,7 @@ class SwinTransformerHead(nn.Module):
             # 1/16 -> 1/8
             # UpBlock(384, 192),
             # 1/8  -> 1/4
-            # UpBlock(192, 96),
+            UpBlock(192, 96),
             # 1/4  -> 1/2
             UpBlock(96, 48),
             # 1/2  -> 1/1 (Original Size)
