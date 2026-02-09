@@ -10,5 +10,6 @@ datamaker/
 *.ipynb
 config/depth_continue.yaml
 __pycache__/
+*.pyc
 debug/
 posemlp/
