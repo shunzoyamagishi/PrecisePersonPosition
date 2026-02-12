@@ -13,9 +13,12 @@ from persondetection import PersonDetectionPipeline
 class PositionEstimatorPipeline:
     def __init__(self, cfg: dict | None = None, device: str = "cuda"):
         default_cfg = {
-            "persondetection":{
-                "detector_threshold": 0.6,
-                "is_pose": True,
+            "inference":{
+                "persondetection":{
+                    "detector_threshold": 0.6,
+                    "is_pose": True,
+                },
+                "input_padding_bbox": 2.0,
             },
             "positionestimation":{
                 "DepthAnythingV2_encoder": "vits",
@@ -28,9 +31,9 @@ class PositionEstimatorPipeline:
         else:
             self.cfg = deep_merge_dict(default_cfg, cfg)
 
-        self.detect_pipeline = PersonDetectionPipeline(cfg=self.cfg["persondetection"], device=device)
+        self.detect_pipeline = PersonDetectionPipeline(cfg=self.cfg["inference"]["persondetection"], device=device)
         self.positionestimator = PositionEstimator(cfg=self.cfg["positionestimation"], device=device)
-        self.cfg["persondetection"] = deep_merge_dict(self.cfg["persondetection"], self.detect_pipeline.cfg)
+        self.cfg["inference"]["persondetection"] = deep_merge_dict(self.cfg["inference"]["persondetection"], self.detect_pipeline.cfg)
         self.cfg["positionestimation"] = deep_merge_dict(self.cfg["positionestimation"], self.positionestimator.cfg)
 
     def __call__(self, image:np.ndarray|Image.Image)->Tuple[Optional[sv.Detections], Optional[dict], Optional[np.ndarray], np.ndarray]:
@@ -48,7 +51,7 @@ class PositionEstimatorPipeline:
         if detect is None:
             return None, None, None, annotatedimage, heatmap
         pred_pts = []
-        cropped = self.crop_input(detect.xyxy, image.size, pad=1.5)
+        cropped = self.crop_input(detect.xyxy, image.size, pad=self.cfg["inference"]["input_padding_bbox"])
         for bbox, square in zip(detect.xyxy, cropped):
             x1, y1, x2, y2 = map(int, square)
             input = image.crop((x1, y1, x2, y2))

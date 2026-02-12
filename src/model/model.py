@@ -58,6 +58,8 @@ class PositionEstimator(nn.Module):
             self.head.load_state_dict(ckpt["model"])
             print(f"Head checkpoint {self.cfg['pretrain_model']} is loaded.")
         else:
+            if self.cfg.get("pretrain_model"):
+                print(f"Head checkpoint {self.cfg['pretrain_model']} is not found.")
             self.head = self.build_head(
                 model_name=self.cfg["head"],
                 in_channel=depthmodel_configs[self.cfg["DepthAnythingV2_encoder"]]['features'],

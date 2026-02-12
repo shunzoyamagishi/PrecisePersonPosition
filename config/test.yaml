@@ -1,6 +1,8 @@
-persondetection:
-  detector_threshold: 0.8
-  is_pose: True
+inference:
+  persondetection:
+    detector_threshold: 0.8
+    is_pose: True
+  input_padding_bbox: 2.0   
 positionestimation:
   pretrain_model: runs/train/2026-02-07_05-26-52/model_epoch29.pt
   perspective_heatmap: True
