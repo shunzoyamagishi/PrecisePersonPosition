@@ -34,14 +34,22 @@ def test(cfg:dict, save_dir:str):
                 "image": attribute[0],
                 "DistancefromPerson": attribute[1],
                 "TiltAngle": attribute[2],
-                "lower_f(image)": np.nan,
-                "mid_f(image)": np.nan,
-                "bc_bbox(image)": np.nan,
-                "pred_point(image)": np.nan,
-                "lower_f(field)": np.nan,
-                "mid_f(field)": np.nan,
-                "bc_bbox(field)": np.nan,
-                "pred_point(field)": np.nan,
+                "lower_f(image)[X]": np.nan,
+                "lower_f(image)[Y]": np.nan,
+                "mid_f(image)[X]": np.nan,
+                "mid_f(image)[Y]": np.nan,
+                "bc_bbox(image)[X]": np.nan,
+                "bc_bbox(image)[Y]": np.nan,
+                "pred_point(image)[X]": np.nan,
+                "pred_point(image)[Y]": np.nan,
+                "lower_f(field)[X]": np.nan,
+                "lower_f(field)[Y]": np.nan,
+                "mid_f(field)[X]": np.nan,
+                "mid_f(field)[Y]": np.nan,
+                "bc_bbox(field)[X]": np.nan,
+                "bc_bbox(field)[Y]": np.nan,
+                "pred_point(field)[X]": np.nan,
+                "pred_point(field)[Y]": np.nan,
                 "error_lower_f": np.nan,
                 "error_mid_f": np.nan,
                 "error_bc_bbox": np.nan,
@@ -67,14 +75,22 @@ def test(cfg:dict, save_dir:str):
                 "image": attribute[0],
                 "DistancefromPerson": attribute[1],
                 "TiltAngle": attribute[2],
-                "lower_f(image)": lower_f,
-                "mid_f(image)": mid_f,
-                "bc_bbox(image)": bc_bbox,
-                "pred_point(image)": pred_pt,
-                "lower_f(field)": pts_fld[0][0],
-                "mid_f(field)": pts_fld[0][1],
-                "bc_bbox(field)": pts_fld[0][2],
-                "pred_point(field)": pts_fld[0][3],
+                "lower_f(image)[X]": lower_f[0],
+                "lower_f(image)[Y]": lower_f[1],
+                "mid_f(image)[X]": mid_f[0],
+                "mid_f(image)[Y]": mid_f[1],
+                "bc_bbox(image)[X]": bc_bbox[0],
+                "bc_bbox(image)[Y]": bc_bbox[1],
+                "pred_point(image)[X]": pred_pt[0],
+                "pred_point(image)[Y]": pred_pt[1],
+                "lower_f(field)[X]": pts_fld[0][0][0],
+                "lower_f(field)[Y]": pts_fld[0][0][1],
+                "mid_f(field)[X]": pts_fld[0][1][0],
+                "mid_f(field)[Y]": pts_fld[0][1][1],
+                "bc_bbox(field)[X]": pts_fld[0][2][0],
+                "bc_bbox(field)[Y]": pts_fld[0][2][1],
+                "pred_point(field)[X]": pts_fld[0][3][0],
+                "pred_point(field)[Y]": pts_fld[0][3][1],
                 "error_lower_f": np.linalg.norm(pts_fld[0][0]),
                 "error_mid_f": np.linalg.norm(pts_fld[0][1]),
                 "error_bc_bbox": np.linalg.norm(pts_fld[0][2]),
@@ -84,11 +100,11 @@ def test(cfg:dict, save_dir:str):
             pred_result.append(row)
 
     df = pd.DataFrame(pred_result)
-    df.to_csv(os.path.join(save_dir, 'pred.csv'))
+    df.to_csv(os.path.join(save_dir, 'pred.csv'), index=False)
 
     errors = pd.DataFrame({
-        "mean": df[["error_lower_f", "error_mid_f", "error_bc_bbox", "error_pred_point"]].mean(),
-        "std":  df[["error_lower_f", "error_mid_f", "error_bc_bbox", "error_pred_point"]].std(),
+        "mean(error)": df[["error_lower_f", "error_mid_f", "error_bc_bbox", "error_pred_point"]].mean(),
+        "std(error)":  df[["error_lower_f", "error_mid_f", "error_bc_bbox", "error_pred_point"]].std(),
     })
 
     errors = errors.rename(index={
@@ -97,6 +113,18 @@ def test(cfg:dict, save_dir:str):
         "error_bc_bbox": "bc_bbox",
         "error_pred_point": "pred_point",
     })
+    
+    errors["unbiased_var"] = np.nan
+
+    for method in errors.index:
+        print(method)
+        coords = df[[f'{method}(field)[X]', f'{method}(field)[Y]']]
+        mean_coord = coords.mean()
+        error_frommean = coords - mean_coord
+        dist_error = np.sqrt((error_frommean**2).sum(axis=1))
+        unbiased_var = dist_error.var(ddof=1)
+        print(unbiased_var)
+        errors.loc[method, "unbiased_var"] =  unbiased_var
 
     thresholds = [0.1, 0.25, 0.5, 1.0, 2.0]
     for thresh in thresholds:
@@ -131,7 +159,7 @@ def test(cfg:dict, save_dir:str):
         'display.max_columns', None,
         'display.width', None
     ):
-        print(errors.iloc[:, [0,2,3,4,5,6]])
+        print(errors.iloc[:, [0,2,3,4,5,6,7]])
 
 
 def threshold_accuracy_series(s_pred: pd.Series, threshold: float=0.5) -> float:
