@@ -59,15 +59,15 @@ def test(cfg:dict, save_dir:str):
         else:
             bbox = detect.xyxy[np.argmax(detect.confidence)]
             bc_bbox = np.array([bbox[0:3:2].mean(), bbox[3]])
-            left_f = kpt.xy[np.argmax(detect.confidence)][15]
-            right_f = kpt.xy[np.argmax(detect.confidence)][16]
+            left_a = kpt.xy[np.argmax(detect.confidence)][15]
+            right_a = kpt.xy[np.argmax(detect.confidence)][16]
             pred_pt = pred_pts[np.argmax(detect.confidence)]
-            mid_a = (left_f + right_f)/2
-            if left_f[1] > right_f[1]:
-                lower_a = left_f
+            mid_a = (left_a + right_a)/2
+            if left_a[1] > right_a[1]:
+                lower_a = left_a
             else:
-                lower_a = right_f
-
+                lower_a = right_a
+                
             pts_img = np.array([lower_a, mid_a, bc_bbox, pred_pt], dtype=np.float32).reshape(1,-1,2)
             pts_fld = cv2.perspectiveTransform(pts_img, H_image2field)
 
