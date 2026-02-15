@@ -6,7 +6,9 @@ import matplotlib.pyplot as plt
 import argparse
 from typing import Tuple, Optional
 from PIL import Image
+import supervision as sv
 from tqdm import tqdm
+from trackers import ByteTrackTracker as ByteTrack
 import yaml
 
 from src.utils import load_config
@@ -33,6 +35,8 @@ def inference(path:str, cfg:dict, save_dir:str):
         yaml.safe_dump(pipeline.cfg, f)
 
     if is_video(path):
+        tracker = ByteTrack()
+        label_annotator = sv.LabelAnnotator()
         cap = cv2.VideoCapture(path)
         if not cap.isOpened():
             raise ValueError(f"Failed to open the video: {path}")
@@ -49,7 +53,9 @@ def inference(path:str, cfg:dict, save_dir:str):
             ret, frame = cap.read()
             if not ret:
                 break
-            _, _, _, annotatedframe, heatmap = pipeline(frame)
+            detect, _, _, annotatedframe, heatmap = pipeline(frame)
+            detect = tracker.update(detect)
+            annotatedframe = label_annotator.annotate(annotatedframe, detect, labels=detect.tracker_id)
             out.write(annotatedframe)
         cap.release()
         out.release()
