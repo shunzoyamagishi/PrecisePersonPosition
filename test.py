@@ -34,24 +34,24 @@ def test(cfg:dict, save_dir:str):
                 "image": attribute[0],
                 "DistancefromPerson": attribute[1],
                 "TiltAngle": attribute[2],
-                "lower_f(image)[X]": np.nan,
-                "lower_f(image)[Y]": np.nan,
-                "mid_f(image)[X]": np.nan,
-                "mid_f(image)[Y]": np.nan,
+                "lower_a(image)[X]": np.nan,
+                "lower_a(image)[Y]": np.nan,
+                "mid_a(image)[X]": np.nan,
+                "mid_a(image)[Y]": np.nan,
                 "bc_bbox(image)[X]": np.nan,
                 "bc_bbox(image)[Y]": np.nan,
                 "pred_point(image)[X]": np.nan,
                 "pred_point(image)[Y]": np.nan,
-                "lower_f(field)[X]": np.nan,
-                "lower_f(field)[Y]": np.nan,
-                "mid_f(field)[X]": np.nan,
-                "mid_f(field)[Y]": np.nan,
+                "lower_a(field)[X]": np.nan,
+                "lower_a(field)[Y]": np.nan,
+                "mid_a(field)[X]": np.nan,
+                "mid_a(field)[Y]": np.nan,
                 "bc_bbox(field)[X]": np.nan,
                 "bc_bbox(field)[Y]": np.nan,
                 "pred_point(field)[X]": np.nan,
                 "pred_point(field)[Y]": np.nan,
-                "error_lower_f": np.nan,
-                "error_mid_f": np.nan,
+                "error_lower_a": np.nan,
+                "error_mid_a": np.nan,
                 "error_bc_bbox": np.nan,
                 "error_pred_point": np.nan,
             }
@@ -62,37 +62,37 @@ def test(cfg:dict, save_dir:str):
             left_f = kpt.xy[np.argmax(detect.confidence)][15]
             right_f = kpt.xy[np.argmax(detect.confidence)][16]
             pred_pt = pred_pts[np.argmax(detect.confidence)]
-            mid_f = (left_f + right_f)/2
+            mid_a = (left_f + right_f)/2
             if left_f[1] > right_f[1]:
-                lower_f = left_f
+                lower_a = left_f
             else:
-                lower_f = right_f
+                lower_a = right_f
 
-            pts_img = np.array([lower_f, mid_f, bc_bbox, pred_pt], dtype=np.float32).reshape(1,-1,2)
+            pts_img = np.array([lower_a, mid_a, bc_bbox, pred_pt], dtype=np.float32).reshape(1,-1,2)
             pts_fld = cv2.perspectiveTransform(pts_img, H_image2field)
 
             row = {
                 "image": attribute[0],
                 "DistancefromPerson": attribute[1],
                 "TiltAngle": attribute[2],
-                "lower_f(image)[X]": lower_f[0],
-                "lower_f(image)[Y]": lower_f[1],
-                "mid_f(image)[X]": mid_f[0],
-                "mid_f(image)[Y]": mid_f[1],
+                "lower_a(image)[X]": lower_a[0],
+                "lower_a(image)[Y]": lower_a[1],
+                "mid_a(image)[X]": mid_a[0],
+                "mid_a(image)[Y]": mid_a[1],
                 "bc_bbox(image)[X]": bc_bbox[0],
                 "bc_bbox(image)[Y]": bc_bbox[1],
                 "pred_point(image)[X]": pred_pt[0],
                 "pred_point(image)[Y]": pred_pt[1],
-                "lower_f(field)[X]": pts_fld[0][0][0],
-                "lower_f(field)[Y]": pts_fld[0][0][1],
-                "mid_f(field)[X]": pts_fld[0][1][0],
-                "mid_f(field)[Y]": pts_fld[0][1][1],
+                "lower_a(field)[X]": pts_fld[0][0][0],
+                "lower_a(field)[Y]": pts_fld[0][0][1],
+                "mid_a(field)[X]": pts_fld[0][1][0],
+                "mid_a(field)[Y]": pts_fld[0][1][1],
                 "bc_bbox(field)[X]": pts_fld[0][2][0],
                 "bc_bbox(field)[Y]": pts_fld[0][2][1],
                 "pred_point(field)[X]": pts_fld[0][3][0],
                 "pred_point(field)[Y]": pts_fld[0][3][1],
-                "error_lower_f": np.linalg.norm(pts_fld[0][0]),
-                "error_mid_f": np.linalg.norm(pts_fld[0][1]),
+                "error_lower_a": np.linalg.norm(pts_fld[0][0]),
+                "error_mid_a": np.linalg.norm(pts_fld[0][1]),
                 "error_bc_bbox": np.linalg.norm(pts_fld[0][2]),
                 "error_pred_point": np.linalg.norm(pts_fld[0][3]),
             }
@@ -102,14 +102,18 @@ def test(cfg:dict, save_dir:str):
     df = pd.DataFrame(pred_result)
     df.to_csv(os.path.join(save_dir, 'pred.csv'), index=False)
 
+    evaluate_pipeline(df)
+    
+
+def evaluate_pipeline(df:pd.DataFrame):
     errors = pd.DataFrame({
-        "mean(error)": df[["error_lower_f", "error_mid_f", "error_bc_bbox", "error_pred_point"]].mean(),
-        "std(error)":  df[["error_lower_f", "error_mid_f", "error_bc_bbox", "error_pred_point"]].std(),
+        "mean(error)": df[["error_lower_a", "error_mid_a", "error_bc_bbox", "error_pred_point"]].mean(),
+        "std(error)":  df[["error_lower_a", "error_mid_a", "error_bc_bbox", "error_pred_point"]].std(),
     })
 
     errors = errors.rename(index={
-        "error_lower_f": "lower_f",
-        "error_mid_f": "mid_f",
+        "error_lower_a": "lower_a",
+        "error_mid_a": "mid_a",
         "error_bc_bbox": "bc_bbox",
         "error_pred_point": "pred_point",
     })
@@ -117,14 +121,13 @@ def test(cfg:dict, save_dir:str):
     errors["unbiased_var"] = np.nan
 
     for method in errors.index:
-        print(method)
         coords = df[[f'{method}(field)[X]', f'{method}(field)[Y]']]
         mean_coord = coords.mean()
         error_frommean = coords - mean_coord
         dist_error = np.sqrt((error_frommean**2).sum(axis=1))
-        unbiased_var = dist_error.var(ddof=1)
-        print(unbiased_var)
-        errors.loc[method, "unbiased_var"] =  unbiased_var
+        valid_error = dist_error[dist_error<1.0]
+        unbiased_var = valid_error.var(ddof=1)
+        errors.loc[method, "unbiased_var"] = unbiased_var
 
     thresholds = [0.1, 0.25, 0.5, 1.0, 2.0]
     for thresh in thresholds:
