@@ -4,5 +4,6 @@ ipykernel
 schedulefree
 supervision
 tensorboard
+trackers
 transformers
 ultralytics
