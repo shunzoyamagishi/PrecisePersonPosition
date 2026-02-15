@@ -54,8 +54,9 @@ def inference(path:str, cfg:dict, save_dir:str):
             if not ret:
                 break
             detect, _, _, annotatedframe, heatmap = pipeline(frame)
-            detect = tracker.update(detect)
-            annotatedframe = label_annotator.annotate(annotatedframe, detect, labels=detect.tracker_id)
+            if detect is not None:
+                detect = tracker.update(detect)
+                annotatedframe = label_annotator.annotate(annotatedframe, detect, labels=detect.tracker_id)
             out.write(annotatedframe)
         cap.release()
         out.release()
