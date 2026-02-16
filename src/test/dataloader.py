@@ -6,9 +6,8 @@ from ..train import PersonPositionDataset
    
 
 class TestDataset(PersonPositionDataset):
-    def __init__(self, root_dir:str, input_size:int=224):
+    def __init__(self, root_dir:str):
         self.root_dir = root_dir
-        self.input_size = input_size
         self.samples = []
         
         for dirpath, dirnames, filenames in os.walk(root_dir):
