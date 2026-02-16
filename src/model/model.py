@@ -8,9 +8,6 @@ import numpy as np
 
 from .depth import DepthFeatureExtractor
 from .swintransformerhead import SwinTransformerHead
-from .transformerhead import SwinTransformerHead as SwinTransformerHead_Old
-from .transformerunet import SwinTransformerUNet
-from .convnexthead import ConvNeXtHead
 
 from src.utils import deep_merge_dict
 
@@ -22,6 +19,7 @@ class PositionEstimator(nn.Module):
         default_cfg = {
             "DepthAnythingV2_encoder": "vits",
             "head": "swintransformer",
+            "head_depth": 2,
             "in_size": 224,
             "pretrain_model": None,
             "perspective_heatmap" : True,
@@ -31,6 +29,10 @@ class PositionEstimator(nn.Module):
             self.cfg = default_cfg
         else:
             self.cfg = deep_merge_dict(default_cfg, cfg)
+            if self.cfg["head_depth"] < 1 or 4 < self.cfg["head_depth"]:
+                self.cfg["head_depth"] = min(max(1, self.cfg["head_depth"]), 4)
+            if self.cfg["in_size"] % (8*self.cfg["head_depth"]) != 0:
+                self.cfg["in_size"] = 224
 
         self.device = device
 
@@ -46,12 +48,13 @@ class PositionEstimator(nn.Module):
             self.cfg["in_size"] = ckpt.get("in_size", self.cfg["in_size"])
             self.cfg["DepthAnythingV2_encoder"] = ckpt.get("DepthAnythingV2_encoder", self.cfg["DepthAnythingV2_encoder"])
             self.cfg["head"] = ckpt.get("model_name", self.cfg["head"])
+            self.cfg["head_depth"] = ckpt.get("model_depth", self.cfg["head_depth"])
             self.cfg["targetstd"] = ckpt.get("targetstd", self.cfg["targetstd"])
-            # self.head = SwinTransformerHead(in_size=self.cfg["in_size"], in_channel=depthmodel_configs[self.cfg["DepthAnythingV2_encoder"]]['features'], out_channel=2, device=self.device)
+            
             self.head = self.build_head(
                 model_name=self.cfg["head"],
                 in_channel=depthmodel_configs[self.cfg["DepthAnythingV2_encoder"]]['features'],
-                in_size=self.cfg["in_size"],
+                bottleneck_depth=self.cfg["head_depth"],
                 out_channel=2,
                 device=self.device
             )
@@ -63,7 +66,7 @@ class PositionEstimator(nn.Module):
             self.head = self.build_head(
                 model_name=self.cfg["head"],
                 in_channel=depthmodel_configs[self.cfg["DepthAnythingV2_encoder"]]['features'],
-                in_size=self.cfg["in_size"],
+                bottleneck_depth=self.cfg["head_depth"],
                 out_channel=2,
                 device=self.device
             )
@@ -84,20 +87,18 @@ class PositionEstimator(nn.Module):
 
         return depth, pos
     
-    def build_head(self, *, model_name: str, in_channel: int, in_size: int, out_channel: int, device: str):
+    def build_head(self, *, model_name: str, in_channel: int, bottleneck_depth: int, out_channel: int, device: str):
         MODEL_REGISTRY = {
             "swintransformer": SwinTransformerHead,
-            "swintransformerunet": SwinTransformerUNet,
-            "convnext": ConvNeXtHead,
-            "old": SwinTransformerHead_Old,
+            # You can add your favorite models as needed.
         }
         if model_name not in MODEL_REGISTRY:
             raise ValueError(f"Unknown model_name={model_name}. choices={list(MODEL_REGISTRY)}")
         
         cls = MODEL_REGISTRY[model_name]
         return cls(
-            in_size=in_size,
             in_channel=in_channel,
+            bottleneck_depth=bottleneck_depth,
             out_channel=out_channel,
             device=device,
         )

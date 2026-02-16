@@ -172,6 +172,7 @@ def train(
 
         ckpt = {
             "modelname": model.cfg["head"],
+            "model_depth": model.cfg["head_depth"],
             "model": copy.deepcopy(model.head.state_dict()),
             "optimizer": optimizer.state_dict(),   # ← AdamWのm/vなどが入る
             "epoch": epoch+1,                        # 次回は epoch+1 から

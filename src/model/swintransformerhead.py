@@ -23,10 +23,11 @@ class UpBlock(nn.Module):
     def forward(self, x):
         return self.block(x)
 
+
 class SwinTransformerHead(nn.Module):
-    def __init__(self, in_size:int=224, in_channel:int=3, out_channel:int=1, device:str='cuda'):
+    def __init__(self, in_channel:int=3, bottleneck_depth:int=2, out_channel:int=1, device:str='cuda'):
         super().__init__()
-        self.in_size = in_size
+        self.bottleneck_depth = min(1, max(bottleneck_depth, 4))
         self.device = device
 
         # --- Encoder (Backbone) ---
@@ -45,27 +46,19 @@ class SwinTransformerHead(nn.Module):
         
         # Swinは最後のGlobal Average Pooling手前までを使用
         # 出力サイズ: (B, H/32, W/32, 768)
-        # self.encoder = swin.features
-        self.encoder = swin.features[0:4]
-        # self.norm = swin.norm 
-        self.norm = nn.LayerNorm(192)
+        ch = features_ch[self.bottleneck_depth-1]
+        self.encoder = swin.features[0:2*self.bottleneck_depth]
+        self.norm = nn.LayerNorm(ch)
 
         # --- Decoder (Gradual Upsampling) ---
         # Swin-Tの最終出力は 768ch, サイズは 1/32 (224pxなら7x7)
         # これを 1/1 (224x224) まで5段階で戻す
         
-        self.decoder = nn.Sequential(
-            # 1/32 -> 1/16
-            # UpBlock(768, 384),
-            # 1/16 -> 1/8
-            # UpBlock(384, 192),
-            # 1/8  -> 1/4
-            UpBlock(192, 96),
-            # 1/4  -> 1/2
-            UpBlock(96, 48),
-            # 1/2  -> 1/1 (Original Size)
-            UpBlock(48, 24)
-        )
+        decoder_layers = []
+        while ch > 24:
+            decoder_layers.append(UpBlock(ch, ch//2))
+            ch = ch//2
+        self.decoder = nn.Sequential(*decoder_layers)
 
         # 最終出力層 (1x1 Conv)
         self.final_conv = nn.Conv2d(24, out_channel, kernel_size=1)
