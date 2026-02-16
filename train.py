@@ -149,7 +149,6 @@ def train(
 
         if avg_train_loss < best_train_loss:
             best_train_loss = avg_train_loss
-            logger.info(f"Best model updated (train_loss={best_train_loss:.6f})")
 
         # Validation
         model.eval()
