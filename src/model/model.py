@@ -5,6 +5,7 @@ import torchvision
 from torchvision.models import swin_v2_s, Swin_V2_S_Weights, swin_v2_t, Swin_V2_T_Weights, convnext_tiny, ConvNeXt_Tiny_Weights
 import os
 import numpy as np
+import warnings
 
 from .depth import DepthFeatureExtractor
 from .swintransformerhead import SwinTransformerHead
@@ -31,8 +32,16 @@ class PositionEstimator(nn.Module):
             self.cfg = deep_merge_dict(default_cfg, cfg)
             if self.cfg["head_depth"] < 1 or 4 < self.cfg["head_depth"]:
                 self.cfg["head_depth"] = min(max(1, self.cfg["head_depth"]), 4)
+                warnings.warn(
+                    f"The depth of head must be ranga of [1, 4]. It has been automatically changed to {self.cfg["head_depth"]}.",
+                    UserWarning
+                )
             if self.cfg["in_size"] % (8*self.cfg["head_depth"]) != 0:
                 self.cfg["in_size"] = 224
+                warnings.warn(
+                    f"The input size is recommended to be a multiple of 7 and 8×head depth(={8*self.cfg["head_depth"]}). It has been automatically changed to {self.cfg["in_size"]}.",
+                    UserWarning
+                )
 
         self.device = device
 
