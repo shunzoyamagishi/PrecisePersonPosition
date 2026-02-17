@@ -14,7 +14,7 @@ pip install -r requirements.txt
 - Refer to the [Depth-Anything-V2 repository](https://github.com/DepthAnything/Depth-Anything-V2), download the checkpoint file from that repository, and place it in checkpoint directory.
 
 ## Model
-![](model.png)
+![](assets/model.png)
 
 ## Train
 ```bash
