@@ -4,4 +4,4 @@ inference:
     is_pose: True
   input_padding_bbox: 2.0
 positionestimation:
-  pretrain_model: checkpoints/depthhead.pt
+  pretrain_model: checkpoints/transformerhead.pt
