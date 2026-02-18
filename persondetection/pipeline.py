@@ -55,8 +55,8 @@ class PersonDetectionPipeline:
         self.vitpose_model = POSE_REGISTRY[self.cfg["pose_estimator"]]["pose_model"]
         
         TRACKER_REGISTRY = {
-            "bytetrack": ByteTrackTracker(),
-            "sort": SORTTracker()
+            "ByteTrack": ByteTrackTracker(),
+            "SORT": SORTTracker()
         }
         if self.cfg["tracker"] is not None and self.cfg["tracker"] in TRACKER_REGISTRY:
             self.tracker = TRACKER_REGISTRY[self.cfg["tracker"]]
