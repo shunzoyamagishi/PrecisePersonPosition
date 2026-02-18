@@ -23,7 +23,7 @@ class PositionEstimatorPipeline:
             "positionestimation":{
                 "DepthAnythingV2_encoder": "vits",
                 "in_size": 224,
-                "pretrain_model": "checkpoints/depthhead.pt",
+                "pretrain_model": "checkpoints/depthhead.pt"
             },  
         }
         if cfg is None:
