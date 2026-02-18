@@ -121,12 +121,12 @@ def evaluate_pipeline(df:pd.DataFrame):
     errors["unbiased_var"] = np.nan
 
     for method in errors.index:
-        coords = df[[f'{method}(field)[X]', f'{method}(field)[Y]']]
+        df_subset = df[df[f"error_{method}"]<1.0]
+        coords = df_subset[[f'{method}(field)[X]', f'{method}(field)[Y]']]
         mean_coord = coords.mean()
         error_frommean = coords - mean_coord
         dist_error = np.sqrt((error_frommean**2).sum(axis=1))
-        valid_error = dist_error[dist_error<1.0]
-        unbiased_var = valid_error.var(ddof=1)
+        unbiased_var = dist_error.var(ddof=1)
         errors.loc[method, "unbiased_var"] = unbiased_var
 
     thresholds = [0.1, 0.25, 0.5, 1.0, 2.0]
