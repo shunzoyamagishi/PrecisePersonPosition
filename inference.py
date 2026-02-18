@@ -31,7 +31,7 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 def inference(path:str, cfg:dict, save_dir:str):    
     pipeline = PositionEstimatorPipeline(cfg=cfg, device=DEVICE)
     if is_image(path):
-        pipeline.detect_pipeline.cfg["tracker"] = None
+        pipeline.detect_pipeline.tracker = None
         pipeline.cfg["inference"]["persondetection"].pop("tracker", None)
     with open(os.path.join(save_dir, "config.yaml"), "w", encoding="utf-8") as f:
         yaml.safe_dump(pipeline.cfg, f)

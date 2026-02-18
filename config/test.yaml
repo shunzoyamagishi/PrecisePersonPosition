@@ -4,8 +4,9 @@ inference:
     is_pose: True
     person_detector: RTDETR
     pose_estimator: ViTPose
+    tracker: "ByteTrack"
   input_padding_bbox: 2.0  
 positionestimation:
-  # pretrain_model: runs/train/2026-02-07_05-26-52/model_epoch29.pt
-  pretrain_model: runs/train/2026-02-12_08-54-26/model_epoch30.pt
+  pretrain_model: runs/train/2026-02-07_05-26-52/model_epoch29.pt
+  # pretrain_model: runs/train/2026-02-12_08-54-26/model_epoch30.pt
   perspective_heatmap: True
