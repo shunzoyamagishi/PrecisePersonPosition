@@ -1,3 +1,4 @@
+from trackers import ByteTrackTracker, SORTTracker
 from transformers import AutoProcessor, RTDetrForObjectDetection, RTDetrV2ForObjectDetection, RTDetrImageProcessor, VitPoseForPoseEstimation
 from .inference import persondetection_inference
 from PIL import Image
@@ -17,6 +18,7 @@ class PersonDetectionPipeline:
             "pose_estimator": "ViTPose",
             "is_pose": True,
             "detector_threshold": 0.3,
+            "tracker": None
         }
         if cfg is None:
             self.cfg = default_cfg
@@ -52,6 +54,14 @@ class PersonDetectionPipeline:
         self.vitpose_image_processor = POSE_REGISTRY[self.cfg["pose_estimator"]]["pose_image_processor"]
         self.vitpose_model = POSE_REGISTRY[self.cfg["pose_estimator"]]["pose_model"]
         
+        TRACKER_REGISTRY = {
+            "bytetrack": ByteTrackTracker(),
+            "sort": SORTTracker()
+        }
+        if self.cfg["tracker"] is not None and self.cfg["tracker"] in TRACKER_REGISTRY:
+            self.tracker = TRACKER_REGISTRY[self.cfg["tracker"]]
+        else:
+            self.tracker = None
 
     def __call__(self, image:Image)->dict:
         return persondetection_inference(
@@ -61,5 +71,6 @@ class PersonDetectionPipeline:
             self.vitpose_image_processor,
             self.vitpose_model,
             self.cfg["is_pose"],
-            float(self.cfg["detector_threshold"])
+            float(self.cfg["detector_threshold"]),
+            tracker=self.tracker
         )

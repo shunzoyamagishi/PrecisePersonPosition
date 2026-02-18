@@ -2,6 +2,7 @@ import torch
 import numpy as np
 import supervision as sv
 from PIL import Image
+from trackers import ByteTrackTracker, SORTTracker
 from transformers import AutoProcessor, RTDetrForObjectDetection, VitPoseForPoseEstimation
 import cv2
 
@@ -20,6 +21,7 @@ def persondetection_inference(
         vitpose_model:VitPoseForPoseEstimation,
         is_pose:bool=False,
         threshold:float=0.3,
+        tracker:SORTTracker | ByteTrackTracker | None = None,
     )->tuple[dict, sv.KeyPoints, Image.Image]:
     if type(image) == np.ndarray:
         image = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
@@ -48,6 +50,9 @@ def persondetection_inference(
         transformers_results=result
     )
 
+    if tracker is not None:
+        detections = tracker.update(detections)
+
     # Human label refers 0 index in COCO dataset
     person_boxes = result["boxes"][result["labels"] == 0]
     person_boxes = person_boxes.cpu().numpy()
@@ -67,6 +72,13 @@ def persondetection_inference(
         scene=image.copy(), 
         detections=detections
     )
+    if tracker is not None:
+        label_annotator = sv.LabelAnnotator()
+        annotated_frame = label_annotator.annotate(
+            annotated_frame, 
+            detections, 
+            labels=detections.tracker_id
+        )
 
     if not is_pose:
         return detections, None, annotated_frame
@@ -96,6 +108,7 @@ def persondetection_inference(
         radius=int(max(2, min(imagesize)//5e2))
     )
     
+
     annotated_frame = edge_annotator.annotate(
         scene=annotated_frame,
         key_points=key_points
@@ -104,5 +117,6 @@ def persondetection_inference(
         scene=annotated_frame,
         key_points=key_points
     )
+    
     
     return detections, key_points, annotated_frame
