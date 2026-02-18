@@ -55,10 +55,8 @@ def inference(path:str, cfg:dict, save_dir:str):
         print(f"Result has been saved to: {output_path}")
 
     elif is_image(path):
-        print(pipeline.detect_pipeline.cfg["tracker"])
         pipeline.detect_pipeline.cfg["tracker"] = None
         pipeline.cfg["inference"]["persondetection"] = deep_merge_dict(cfg["inference"]["persondetection"], pipeline.detect_pipeline.cfg)
-        print(pipeline.detect_pipeline.cfg["tracker"])
         img = cv2.imread(path)
         if img is None:
             raise ValueError(f"Failed to open the image: {path}")
