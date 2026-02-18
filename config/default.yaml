@@ -4,6 +4,7 @@ inference:
     is_pose: True
     person_detector: RTDETR
     pose_estimator: ViTPose
+    tracker: ByteTrack
   input_padding_bbox: 2.0
 positionestimation:
   pretrain_model: checkpoints/transformerhead.pt
