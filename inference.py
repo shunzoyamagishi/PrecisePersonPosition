@@ -8,10 +8,9 @@ from typing import Tuple, Optional
 from PIL import Image
 import supervision as sv
 from tqdm import tqdm
-from trackers import ByteTrackTracker as ByteTrack
 import yaml
 
-from src.utils import load_config
+from src.utils import load_config, deep_merge_dict
 from src.inference import PositionEstimatorPipeline
 
 from pathlib import Path
@@ -31,12 +30,8 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def inference(path:str, cfg:dict, save_dir:str):    
     pipeline = PositionEstimatorPipeline(cfg=cfg, device=DEVICE)
-    with open(os.path.join(save_dir, "config.yaml"), "w", encoding="utf-8") as f:
-        yaml.safe_dump(pipeline.cfg, f)
 
     if is_video(path):
-        tracker = ByteTrack()
-        label_annotator = sv.LabelAnnotator()
         cap = cv2.VideoCapture(path)
         if not cap.isOpened():
             raise ValueError(f"Failed to open the video: {path}")
@@ -53,16 +48,17 @@ def inference(path:str, cfg:dict, save_dir:str):
             ret, frame = cap.read()
             if not ret:
                 break
-            detect, _, _, annotatedframe, _ = pipeline(frame)
-            if detect is not None:
-                detect = tracker.update(detect)
-                annotatedframe = label_annotator.annotate(annotatedframe, detect, labels=detect.tracker_id)
+            _, _, _, annotatedframe, _ = pipeline(frame)
             out.write(annotatedframe)
         cap.release()
         out.release()
         print(f"Result has been saved to: {output_path}")
 
     elif is_image(path):
+        print(pipeline.detect_pipeline.cfg["tracker"])
+        pipeline.detect_pipeline.cfg["tracker"] = None
+        pipeline.cfg["inference"]["persondetection"] = deep_merge_dict(cfg["inference"]["persondetection"], pipeline.detect_pipeline.cfg)
+        print(pipeline.detect_pipeline.cfg["tracker"])
         img = cv2.imread(path)
         if img is None:
             raise ValueError(f"Failed to open the image: {path}")
@@ -74,6 +70,9 @@ def inference(path:str, cfg:dict, save_dir:str):
         heatmap = cv2.cvtColor(heatmap, cv2.COLOR_RGB2BGR)
         cv2.imwrite(heatmap_path, heatmap)
         print(f"Result has been saved to: {output_path}")
+    
+    with open(os.path.join(save_dir, "config.yaml"), "w", encoding="utf-8") as f:
+        yaml.safe_dump(pipeline.cfg, f)
 
 
 def is_image(path: str) -> bool:
