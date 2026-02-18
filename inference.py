@@ -30,6 +30,8 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def inference(path:str, cfg:dict, save_dir:str):    
     pipeline = PositionEstimatorPipeline(cfg=cfg, device=DEVICE)
+    with open(os.path.join(save_dir, "config.yaml"), "w", encoding="utf-8") as f:
+        yaml.safe_dump(pipeline.cfg, f)
 
     if is_video(path):
         cap = cv2.VideoCapture(path)
@@ -55,8 +57,6 @@ def inference(path:str, cfg:dict, save_dir:str):
         print(f"Result has been saved to: {output_path}")
 
     elif is_image(path):
-        pipeline.detect_pipeline.cfg["tracker"] = None
-        pipeline.cfg["inference"]["persondetection"] = deep_merge_dict(cfg["inference"]["persondetection"], pipeline.detect_pipeline.cfg)
         img = cv2.imread(path)
         if img is None:
             raise ValueError(f"Failed to open the image: {path}")
@@ -68,9 +68,6 @@ def inference(path:str, cfg:dict, save_dir:str):
         heatmap = cv2.cvtColor(heatmap, cv2.COLOR_RGB2BGR)
         cv2.imwrite(heatmap_path, heatmap)
         print(f"Result has been saved to: {output_path}")
-    
-    with open(os.path.join(save_dir, "config.yaml"), "w", encoding="utf-8") as f:
-        yaml.safe_dump(pipeline.cfg, f)
 
 
 def is_image(path: str) -> bool:
