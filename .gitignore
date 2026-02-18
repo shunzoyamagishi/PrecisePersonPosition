@@ -7,7 +7,6 @@ yolo11n.pt
 example/
 checkpoints/
 datamaker/
-*.ipynb
 config/depth_continue.yaml
 __pycache__/
 *.pyc
