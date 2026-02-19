@@ -15,9 +15,7 @@ class PersonDetectionPipeline:
     def __init__(self, cfg:dict|None=None, device="cuda"):
         default_cfg = {
             "detector": "RTDETR",
-            "pose_estimator": None,
             "detector_threshold": 0.3,
-            "tracker": None
         }
         if cfg is None:
             self.cfg = default_cfg
@@ -43,29 +41,32 @@ class PersonDetectionPipeline:
             },
             # You can add your favorite pose estimator as needed.
         }
-        if self.cfg["detector"] not in DETECTOR_REGISTRY:
+        if self.cfg.get("detector", "DETR") not in DETECTOR_REGISTRY:
             raise ValueError(f"Unknown detector_name={self.cfg["detector"]}. choices={list(DETECTOR_REGISTRY)}")
         self.person_image_processor = DETECTOR_REGISTRY[self.cfg["detector"]]["person_image_processor"]
         self.person_model = DETECTOR_REGISTRY[self.cfg["detector"]]["person_model"]
 
-        if self.cfg["pose_estimator"] is not None:
-            if self.cfg["pose_estimator"] not in POSE_REGISTRY:
+        if self.cfg.get("pose_estimator") is None:
+            self.vitpose_image_processor = None
+            self.vitpose_model = None
+        else:
+            if self.cfg.get("pose_estimator") not in POSE_REGISTRY:
                 raise ValueError(f"Unknown pose_estimator_name={self.cfg["pose_estimator"]}. choices={list(POSE_REGISTRY)}")
             else:
                 self.vitpose_image_processor = POSE_REGISTRY[self.cfg["pose_estimator"]]["pose_image_processor"]
                 self.vitpose_model = POSE_REGISTRY[self.cfg["pose_estimator"]]["pose_model"]
-        else:
-            self.vitpose_image_processor = None
-            self.vitpose_model = None
         
         TRACKER_REGISTRY = {
             "ByteTrack": ByteTrackTracker(),
             "SORT": SORTTracker()
         }
-        if self.cfg["tracker"] is not None and self.cfg["tracker"] in TRACKER_REGISTRY:
-            self.tracker = TRACKER_REGISTRY[self.cfg["tracker"]]
-        else:
+        if self.cfg.get("tracker") is None:
             self.tracker = None
+        else:
+            if self.cfg.get("tracker") not in TRACKER_REGISTRY:
+                raise ValueError(f"Unknown tracker_name={self.cfg["tracker"]}. choices={list(TRACKER_REGISTRY)}")
+            else:
+                self.tracker = TRACKER_REGISTRY[self.cfg["tracker"]]
 
     def __call__(self, image:Image)->dict:
         return persondetection_inference(

@@ -17,7 +17,6 @@ class PositionEstimatorPipeline:
                 "persondetection":{
                     "detector": "RTDETR",
                     "detector_threshold": 0.6,
-                    "pose_estimator": None, 
                 },
                 "input_padding_bbox": 2.0,
             },
