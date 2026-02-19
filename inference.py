@@ -28,11 +28,11 @@ VID_EXTS = {
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-def inference(path:str, cfg:dict, save_dir:str):    
-    pipeline = PositionEstimatorPipeline(cfg=cfg, device=DEVICE)
+def inference(path:str, cfg:dict, save_dir:str):
     if is_image(path):
-        pipeline.detect_pipeline.tracker = None
-        pipeline.cfg["inference"]["persondetection"].pop("tracker", None)
+        cfg["inference"]["persondetection"].pop("tracker", None)
+    
+    pipeline = PositionEstimatorPipeline(cfg=cfg, device=DEVICE)
     with open(os.path.join(save_dir, "config.yaml"), "w", encoding="utf-8") as f:
         yaml.safe_dump(pipeline.cfg, f)
 
