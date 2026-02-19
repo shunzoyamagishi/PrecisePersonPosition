@@ -1,8 +1,7 @@
 inference:
   persondetection:
     detector_threshold: 0.8
-    is_pose: True
-    person_detector: RTDETR
+    detector: RTDETR
     pose_estimator: ViTPose
   input_padding_bbox: 2.0  
 positionestimation:

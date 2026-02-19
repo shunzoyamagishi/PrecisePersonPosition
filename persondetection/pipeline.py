@@ -14,9 +14,8 @@ Reference: Hugging Face Transformers – ViTPose Documentation
 class PersonDetectionPipeline:
     def __init__(self, cfg:dict|None=None, device="cuda"):
         default_cfg = {
-            "person_detector": "RTDETR",
-            "pose_estimator": "ViTPose",
-            "is_pose": True,
+            "detector": "RTDETR",
+            "pose_estimator": None,
             "detector_threshold": 0.3,
             "tracker": None
         }
@@ -44,15 +43,20 @@ class PersonDetectionPipeline:
             },
             # You can add your favorite pose estimator as needed.
         }
-        if self.cfg["person_detector"] not in DETECTOR_REGISTRY:
-            raise ValueError(f"Unknown detector_name={self.cfg["person_detector"]}. choices={list(DETECTOR_REGISTRY)}")
-        if self.cfg["pose_estimator"] not in POSE_REGISTRY:
-            raise ValueError(f"Unknown pose_estimator_name={self.cfg["pose_estimator"]}. choices={list(POSE_REGISTRY)}")
-            
-        self.person_image_processor = DETECTOR_REGISTRY[self.cfg["person_detector"]]["person_image_processor"]
-        self.person_model = DETECTOR_REGISTRY[self.cfg["person_detector"]]["person_model"]
-        self.vitpose_image_processor = POSE_REGISTRY[self.cfg["pose_estimator"]]["pose_image_processor"]
-        self.vitpose_model = POSE_REGISTRY[self.cfg["pose_estimator"]]["pose_model"]
+        if self.cfg["detector"] not in DETECTOR_REGISTRY:
+            raise ValueError(f"Unknown detector_name={self.cfg["detector"]}. choices={list(DETECTOR_REGISTRY)}")
+        self.person_image_processor = DETECTOR_REGISTRY[self.cfg["detector"]]["person_image_processor"]
+        self.person_model = DETECTOR_REGISTRY[self.cfg["detector"]]["person_model"]
+
+        if self.cfg["pose_estimator"] is not None:
+            if self.cfg["pose_estimator"] not in POSE_REGISTRY:
+                raise ValueError(f"Unknown pose_estimator_name={self.cfg["pose_estimator"]}. choices={list(POSE_REGISTRY)}")
+            else:
+                self.vitpose_image_processor = POSE_REGISTRY[self.cfg["pose_estimator"]]["pose_image_processor"]
+                self.vitpose_model = POSE_REGISTRY[self.cfg["pose_estimator"]]["pose_model"]
+        else:
+            self.vitpose_image_processor = None
+            self.vitpose_model = None
         
         TRACKER_REGISTRY = {
             "ByteTrack": ByteTrackTracker(),
@@ -70,7 +74,6 @@ class PersonDetectionPipeline:
             self.person_model,
             self.vitpose_image_processor,
             self.vitpose_model,
-            self.cfg["is_pose"],
             float(self.cfg["detector_threshold"]),
             tracker=self.tracker
         )

@@ -9,17 +9,34 @@ from tqdm import tqdm
 import argparse
 from typing import Tuple, Optional
 
-from src.utils import load_config
+from src.utils import load_config, deep_merge_dict
 from src.inference import PositionEstimatorPipeline
 from src.test import TestDataset
 
 
 def test(cfg:dict, save_dir:str):
+    default_cfg = {
+        "inference":{
+            "persondetection":{
+                    "detector": "RTDETR",
+                    "detector_threshold": 0.8,
+                    "pose_estimator": "ViTPose",
+                },
+            "input_padding_bbox": 2.0 
+        },
+        "positionestimation":{
+            "pretrain_model": "checkpoints/transformerhead.pt",
+            "perspective_heatmap": True
+        }  
+    }
+    cfg = deep_merge_dict(default_cfg, cfg)
+        
     DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     pipeline = PositionEstimatorPipeline(cfg=cfg, device=DEVICE)
     testdataset = TestDataset("data/test")
+    pipeline.detect_pipeline.tracker = None
     pipeline.cfg["inference"]["persondetection"].pop("tracker", None)
-    
+
     with open(os.path.join(save_dir, "config.yaml"), "w", encoding="utf-8") as f:
         yaml.safe_dump(pipeline.cfg, f)
 

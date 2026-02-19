@@ -15,8 +15,9 @@ class PositionEstimatorPipeline:
         default_cfg = {
             "inference":{
                 "persondetection":{
+                    "detector": "RTDETR",
                     "detector_threshold": 0.6,
-                    "is_pose": True,
+                    "pose_estimator": None, 
                 },
                 "input_padding_bbox": 2.0,
             },

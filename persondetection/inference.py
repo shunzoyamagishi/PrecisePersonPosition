@@ -17,9 +17,8 @@ def persondetection_inference(
         image:Image,
         person_image_processor:AutoProcessor,
         person_model:RTDetrForObjectDetection,
-        vitpose_image_processor:AutoProcessor,
-        vitpose_model:VitPoseForPoseEstimation,
-        is_pose:bool=False,
+        vitpose_image_processor:AutoProcessor | None,
+        vitpose_model:VitPoseForPoseEstimation | None,
         threshold:float=0.3,
         tracker:SORTTracker | ByteTrackTracker | None = None,
     )->tuple[dict, sv.KeyPoints, Image.Image]:
@@ -80,7 +79,7 @@ def persondetection_inference(
             labels=detections.tracker_id
         )
 
-    if not is_pose:
+    if vitpose_image_processor is None or vitpose_model is None:
         return detections, None, annotated_frame
     
     # Detect keypoints for each person found
