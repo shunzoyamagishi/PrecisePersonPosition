@@ -81,7 +81,7 @@ def train(
     valid_loader = DataLoader(valid_dataset, batch_size=batch_size, shuffle=False)
 
     # Model
-    model = PositionEstimator(cfg=cfg)
+    model = PositionEstimator(cfg=cfg["positionestimation"])
     model.depth_model.to(DEVICE2).eval()
     model.head.to(DEVICE1).train()
     cfg["positionestimation"] = deep_merge_dict(cfg["positionestimation"], model.cfg)
