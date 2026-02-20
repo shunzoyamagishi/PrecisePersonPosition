@@ -6,4 +6,4 @@ inference:
     tracker: ByteTrack
   input_padding_bbox: 2.0
 positionestimation:
-  pretrain_model: checkpoints/transformerhead.pt
+  pretrain_model: checkpoints/transformerhead_full.pt
