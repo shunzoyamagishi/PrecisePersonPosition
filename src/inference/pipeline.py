@@ -51,7 +51,7 @@ class PositionEstimatorPipeline:
         if detect is None:
             return None, None, None, annotatedimage, heatmap
         pred_pts = []
-        cropped = self.crop_input(detect.xyxy, image.size, pad=self.cfg["inference"]["input_padding_bbox"])
+        cropped = self.crop_input(detect.xyxy, image.size, pad=self.cfg["inference"]["input_padding_bbox"], allow_shrink=False)
         for bbox, square in zip(detect.xyxy, cropped):
             x1, y1, x2, y2 = map(int, square)
             input = image.crop((x1, y1, x2, y2))
