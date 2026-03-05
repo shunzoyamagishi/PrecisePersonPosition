@@ -68,10 +68,12 @@ class PersonPositionDataset(Dataset):
         item = self.samples[idx]
         image = cv2.imread(item['img_name'])
         pos_gt = np.array(item['pos'])
-        square = np.array(item['square'])        
+        square = np.array(item['square'])
+        bbox_pref = np.array(item['bbox'])         
         P = np.array(item['PerspectiveProjectionMatrix'])
         if self.augmentation:
             augmented = self.augmentation(image=image, keypoints=np.expand_dims(pos_gt,0), bboxes=np.expand_dims(square,0))
+            # augmented = self.augmentation(image=image, keypoints=np.expand_dims(pos_gt,0), bboxes=np.stack([square, bbox_pref], axis=0))
             if len(augmented['keypoints']) > 0 and len(augmented['bboxes']) > 0:
                 image = augmented["image"]
                 pos_gt = augmented['keypoints'][0]
