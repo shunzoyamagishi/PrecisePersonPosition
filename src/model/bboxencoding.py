@@ -30,7 +30,7 @@ class BboxEncoding(nn.Module):
     def encoding(self, bboxes:torch.Tensor, feature:torch.Tensor)->torch.Tensor:
         """
         bboxes: Tensor [B,4] = (x1,y1,x2,y2)
-        return: Tensor [B,H,W] where H=W=self.out_size
+        return: Tensor [B,1,H,W] where H=W=self.out_size
         """
         assert bboxes.ndim == 2 and bboxes.size(-1) == 4, f"bboxes must be [B,4], got {tuple(bboxes.shape)}"
 
