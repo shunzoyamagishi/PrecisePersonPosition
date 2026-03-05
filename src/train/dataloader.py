@@ -68,14 +68,14 @@ class PersonPositionDataset(Dataset):
         item = self.samples[idx]
         image = cv2.imread(item['img_name'])
         pos_gt = np.array(item['pos'])
-        bbox_pref = np.array(item['square'])        
+        square = np.array(item['square'])        
         P = np.array(item['PerspectiveProjectionMatrix'])
         if self.augmentation:
-            augmented = self.augmentation(image=image, keypoints=np.expand_dims(pos_gt,0), bboxes=np.expand_dims(bbox_pref,0))
+            augmented = self.augmentation(image=image, keypoints=np.expand_dims(pos_gt,0), bboxes=np.expand_dims(square,0))
             if len(augmented['keypoints']) > 0 and len(augmented['bboxes']) > 0:
                 image = augmented["image"]
                 pos_gt = augmented['keypoints'][0]
-                bbox_pref = augmented['bboxes'][0].astype(np.int32)
+                square = augmented['bboxes'][0].astype(np.int32)
                 flip_applied = any(
                     t.get("__class_fullname__", "").endswith("HorizontalFlip") and t.get("applied", False)
                     for t in augmented["replay"]["transforms"]
@@ -88,13 +88,13 @@ class PersonPositionDataset(Dataset):
 
         image = cv2.cvtColor(image,cv2.COLOR_BGR2RGB)
         if self.random_crop:
-            image, bbox, side = self.random_square_crop(image, pos_gt, ref_bbox=bbox_pref)
+            image, square, side = self.random_square_crop(image, pos_gt, ref_bbox=square)
         else:
-            image, bbox, side = self.square_crop(image, pos_gt, bbox_pref)
+            image, square, side = self.square_crop(image, pos_gt, square)
         image = cv2.resize(image,(self.input_size, self.input_size))
-        pos = np.array([self.input_size/side, self.input_size/side])*(pos_gt - bbox[0:2])
+        pos = np.array([self.input_size/side, self.input_size/side])*(pos_gt - square[0:2])
 
-        P = np.array([[self.input_size/side,0,0],[0,self.input_size/side,0],[0,0,1]])@np.array([[1,0,-bbox[0]],[0,1,-bbox[1]],[0,0,1]])@P
+        P = np.array([[self.input_size/side,0,0],[0,self.input_size/side,0],[0,0,1]])@np.array([[1,0,-square[0]],[0,1,-square[1]],[0,0,1]])@P
 
         # heatmap in image coordinate
         hmap1 = self.generate_gaussian_heatmap(shape=(self.input_size,self.input_size), centers=pos, sigma=self.target_std)
