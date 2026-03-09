@@ -88,7 +88,7 @@ class SwinTransformerHead(nn.Module):
         return (depth_map - mean) / (std + 1e-8)
 
 
-class SwinTransformerHead_bbox(SwinTransformerHead):
+class SwinTransformerHeadWithBBox(SwinTransformerHead):
     def __init__(self, in_channel:int=3, bottleneck_depth:int=2, out_channel:int=1, device:str='cuda'):
         super().__init__(in_channel, bottleneck_depth, out_channel, device)
         self.bboxencoder = BboxEncoding(out_channel=8, device=device)
