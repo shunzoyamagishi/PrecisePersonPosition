@@ -151,7 +151,7 @@ class PositionEstimatorWithBBox(PositionEstimator):
         
         cls = MODEL_REGISTRY[model_name]
         return cls(
-            in_channel=in_channel,
+            in_channel=in_channel+8,  # BBoxエンコードの出力チャネル数を追加S
             bottleneck_depth=bottleneck_depth,
             out_channel=out_channel,
             device=device,
