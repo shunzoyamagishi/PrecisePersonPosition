@@ -29,7 +29,7 @@ python train.py --config config/default_trainfull.yaml
 - `train.log`
 - `events.out.tfevent`
 - `checkpoints`  
-are saved at `trains/yyyy-mm-dd_hh-mm-ss`.
+are saved at `runs/trains/yyyy-mm-dd_hh-mm-ss`.
 
 To check training log:
 ```bash
