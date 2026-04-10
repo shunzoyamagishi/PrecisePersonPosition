@@ -3,28 +3,24 @@ import argparse
 import numpy as np
 import cv2
 import os
-import sys
 import glob
 import json
 from PIL import Image
-from ultralytics import YOLO
 import shutil
+import sys
 import torch
 
-project_root = os.path.abspath(os.path.join(os.getcwd(), ".."))
-sys.path.append(project_root)
+sys.path.append(os.path.dirname(__file__))
 
-from src.utils import perspective_transform
 from persondetection import PersonDetectionPipeline
 
-ROOT_DIR = "./train"
+ROOT_DIR = "data/train"
 MOTION = "SoccerPlayer_walk"
-UNITYPROJECT_PATH = "SoccerPlayer"
+UNITYPROJECT_PATH = "SoccerPlayer" # 自分の環境によって変更、あるいは引数で指定してください。
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-
-def main(root_dir:str, motion:str, unityproject_path:str):
+def move_files(root_dir:str, motion:str, unityproject_path:str):
     assert not os.path.isdir(os.path.join(root_dir, motion)), f"{os.path.join(root_dir, motion)} have already existed."
     
     for i in range(3):
@@ -42,8 +38,9 @@ def main(root_dir:str, motion:str, unityproject_path:str):
                     shutil.move(f"{unityproject_path}/Recordings/Image Sequence_{i*100+j*20+k:03}_{l:04}.jpg", os.path.join(root_dir, motion, f"{i*100+j*20+k:03}"))
                 l += 1
 
-
-    with open('./cameras.json', 'r') as json_open:
+def create_json(root_dir:str, motion:str):
+    print("Create json files...")
+    with open('./data/cameras.json', 'r') as json_open:
         cams = json.load(json_open)
 
     dirs = os.listdir(os.path.join(root_dir, motion))
@@ -53,7 +50,6 @@ def main(root_dir:str, motion:str, unityproject_path:str):
     dirs.sort()
 
     for dir in dirs:
-        print(dir)
         datas = []
         current_dir = os.path.join(root_dir,motion,dir)
         files = sorted(glob.glob(f"{current_dir}/*.jpg"))
@@ -69,9 +65,13 @@ def main(root_dir:str, motion:str, unityproject_path:str):
         with open(os.path.join(current_dir, "data.json"), 'w') as f:
             json.dump(json_write, f, indent=2)
 
-
-    model = PersonDetectionPipeline(cfg=None, device=DEVICE)
-
+def main(root_dir:str, motion:str):
+    cfg = {
+        "detector": "RTDETR",
+        "detector_threshold": 0.3,
+        "pose_estimator": "ViTPose",
+    }
+    model = PersonDetectionPipeline(cfg=cfg, device=DEVICE)
     motion_path = os.path.join(root_dir, motion)
     for video_folder in sorted(os.listdir(motion_path)):
         video_path = os.path.join(motion_path, video_folder)
@@ -138,18 +138,18 @@ def main(root_dir:str, motion:str, unityproject_path:str):
             json.dump(data, f, indent=2)
 
 def expand_bbox_to_include_point(
-    bbox: np.ndarray,            # [x1,y1,x2,y2]
+    square: np.ndarray,            # [x1,y1,x2,y2]
     pt: tuple[float, float],     # (px,py)
     img_w: int, img_h: int,
     keep_ratio: bool = True,
     ratio_wh: tuple[int, int] = (1, 1),  # 幅:高さ
     min_margin: int = 0                  # 点からの最低余白(px)
 ) -> np.ndarray:
-    x1, y1, x2, y2 = map(int, bbox.tolist())
+    x1, y1, x2, y2 = map(int, square.tolist())
     px, py = float(pt[0]), float(pt[1])
 
     # 1) まず点を含むまで外向きに拡大（縮小や平行移動はしない）
-    #    点が bbox の外なら、対応する側を広げる（min_marginも確保）
+    #    点が square の外なら、対応する側を広げる（min_marginも確保）
     if px < x1 + min_margin:
         x1 = int(np.floor(px - min_margin))
     if px > x2 - min_margin:
@@ -220,12 +220,26 @@ def expand_bbox_to_include_point(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Unityからのデータから自動アノテーションしてデータセットを作成します。")
     parser.add_argument("motion", help="モーション名（例: SoccerPlayer_walk）")
-    parser.add_argument("--root_dir", default=ROOT_DIR, help="データセットのルートディレクトリ（例: ./test）")
+    parser.add_argument("--root_dir", default=ROOT_DIR, help="データセットのルートディレクトリ名前（例: test）")
     parser.add_argument("--unityproject_path", default=UNITYPROJECT_PATH, help="Unityプロジェクトのパス（例: SoccerPlayer）")
+    parser.add_argument("--reannotate", action="store_true", help="既存のアノテーションを再作成する")
     args = parser.parse_args()
+    args.root_dir = os.path.join("data", args.root_dir)
+    # example usage:
+    # python -m data.datamaker SoccerPlayer_walk --root_dir "test" --unityproject_path "mnt/e/UnityProjects/SoccerPlayer"
+    # python -m data.datamaker BasketballPlayer_chestpassright --root_dir "test" --reannotate
 
+    if not args.reannotate:
+        move_files(
+            root_dir=args.root_dir,
+            motion=args.motion,
+            unityproject_path=args.unityproject_path
+        )
+    create_json(
+        root_dir=args.root_dir,
+        motion=args.motion
+    )
     main(
         root_dir=args.root_dir,
-        motion=args.motion,
-        unityproject_path=args.unityproject_path
+        motion=args.motion
     )
