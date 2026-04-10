@@ -35,7 +35,7 @@ class BboxEncoding(nn.Module):
         assert bboxes.ndim == 2 and bboxes.size(-1) == 4, f"bboxes must be [B,4], got {tuple(bboxes.shape)}"
 
         device = self.device
-        dtype = self.dtype
+        dtype = feature.dtype
         B = bboxes.size(0)
         H = feature.size(2)
         W = feature.size(3)
