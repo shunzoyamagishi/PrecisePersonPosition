@@ -109,11 +109,12 @@ def train(
         model.head.train()
         optimizer.eval()
         with torch.no_grad():
-            for (images, _, _, _) in tqdm(itertools.islice(train_loader, 50), total=50, desc="Calibration"):
+            for (images, _,bbox,  _, _) in tqdm(itertools.islice(train_loader, 50), total=50, desc="Calibration"):
                 images = images.to(DEVICE2)
                 feature, _ = model.depth_model(images)
-                feature = feature.to(DEVICE1)                
-                outputs = model.head(feature)
+                feature = feature.to(DEVICE1) 
+                bbox = bbox.to(DEVICE1)               
+                outputs = model.head(feature, bbox)
         model.head.eval()
         logger.info("Schedule-Free calibration done")
     
