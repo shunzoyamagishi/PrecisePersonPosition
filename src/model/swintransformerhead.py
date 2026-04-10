@@ -31,6 +31,9 @@ class SwinTransformerHead(nn.Module):
         self.bottleneck_depth = max(1, min(bottleneck_depth, 4))
         self.device = device
 
+        # --- Encoder (BBox Encoder) ---
+        self.bboxencoder = BboxEncoding(out_channel=8, device=device)
+
         # --- Encoder (Backbone) ---
         swin = swin_v2_t(weights=Swin_V2_T_Weights.DEFAULT)
         features_ch = [96, 192, 384, 768]  # Swin-Tの各ステージのチャンネル数
@@ -66,8 +69,9 @@ class SwinTransformerHead(nn.Module):
 
         self.to(device)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, bbox: torch.Tensor) -> torch.Tensor:
         # Encoder
+        x = self.bboxencoder(x, bbox)  # BBox情報をエンコードして特徴に結合
         x = self.encoder(x)      # (B, H/32, W/32, 768)
         x = self.norm(x)         # LayerNorm
         
@@ -86,27 +90,3 @@ class SwinTransformerHead(nn.Module):
         mean = depth_map.mean(dim=[-2, -1], keepdim=True)
         std  = depth_map.std(dim=[-2, -1], keepdim=True)
         return (depth_map - mean) / (std + 1e-8)
-
-
-class SwinTransformerHeadWithBBox(SwinTransformerHead):
-    def __init__(self, in_channel:int=3, bottleneck_depth:int=2, out_channel:int=1, device:str='cuda'):
-        super().__init__(in_channel, bottleneck_depth, out_channel, device)
-        self.bboxencoder = BboxEncoding(out_channel=8, device=device)
-        self.to(device)
-    
-    def forward(self, x: torch.Tensor, bbox: torch.Tensor) -> torch.Tensor:
-        # Encoder
-        x = self.bboxencoder(x, bbox)  # BBox情報をエンコードして特徴に結合
-        x = self.encoder(x)      # (B, H/32, W/32, 768)
-        x = self.norm(x)         # LayerNorm
-        
-        # Permute: (B, H, W, C) -> (B, C, H, W)
-        x = x.permute(0, 3, 1, 2) 
-
-        # Decoder (段階的に大きくする)
-        x = self.decoder(x)
-        
-        # Final prediction
-        x = self.final_conv(x)
-
-        return x

@@ -89,16 +89,17 @@ class PositionEstimator(nn.Module):
         self.depth_model = self.depth_model.to(self.device).eval()
         self.head = self.head.to(self.device).eval()
 
-    def forward(self, x:torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    def forward(self, x: torch.Tensor, bbox: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         x = x.to(self.device)
         feature, depth = self.depth_model.forward(x)
-        pos = self.head.forward(feature)
+        pos = self.head.forward(feature, bbox)
 
         return depth, pos
     
+    
     def build_head(self, *, model_name: str, in_channel: int, bottleneck_depth: int, out_channel: int, device: str):
         MODEL_REGISTRY = {
-            "swintransformer": SwinTransformerHead,
+            "swintransformer": SwinTransformerHeadWithBBox,
             # You can add your favorite models as needed.
         }
         if model_name not in MODEL_REGISTRY:
@@ -106,7 +107,7 @@ class PositionEstimator(nn.Module):
         
         cls = MODEL_REGISTRY[model_name]
         return cls(
-            in_channel=in_channel,
+            in_channel=in_channel+8,  # BBoxエンコードの出力チャネル数を追加S
             bottleneck_depth=bottleneck_depth,
             out_channel=out_channel,
             device=device,
@@ -128,31 +129,3 @@ class PositionEstimator(nn.Module):
         pos = F.interpolate(pos, (h, w), mode="bilinear", align_corners=True)[0, 0]
         
         return depth.cpu().numpy(), pos.cpu().numpy()
-    
-
-class PositionEstimatorWithBBox(PositionEstimator):
-    def __init__(self, cfg: dict):
-        super().__init__(cfg)
-
-    def forward(self, x: torch.Tensor, bbox: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        x = x.to(self.device)
-        feature, depth = self.depth_model.forward(x)
-        pos = self.head.forward(feature, bbox)
-
-        return depth, pos
-    
-    def build_head(self, *, model_name: str, in_channel: int, bottleneck_depth: int, out_channel: int, device: str):
-        MODEL_REGISTRY = {
-            "swintransformer": SwinTransformerHeadWithBBox,
-            # You can add your favorite models as needed.
-        }
-        if model_name not in MODEL_REGISTRY:
-            raise ValueError(f"Unknown model_name={model_name}. choices={list(MODEL_REGISTRY)}")
-        
-        cls = MODEL_REGISTRY[model_name]
-        return cls(
-            in_channel=in_channel+8,  # BBoxエンコードの出力チャネル数を追加S
-            bottleneck_depth=bottleneck_depth,
-            out_channel=out_channel,
-            device=device,
-        )

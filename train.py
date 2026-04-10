@@ -127,16 +127,16 @@ def train(
         #     train_dataset.random_crop = False
         #     valid_dataset.random_crop = False
 
-        for batch, (images, _, heatmap, _) in enumerate(tqdm(train_loader, desc=f"Train : Epoch {epoch + 1}/{epochs}", unit="batch")):
+        for batch, (images, _, bbox, heatmap, _) in enumerate(tqdm(train_loader, desc=f"Train : Epoch {epoch + 1}/{epochs}", unit="batch")):
             images = images.to(DEVICE2)
             with torch.no_grad():
                 feature, _ = model.depth_model(images)
             feature = feature.to(DEVICE1)
-            # pos = pos.to(DEVICE1)
+            bbox = bbox.to(DEVICE1)
             heatmap = heatmap.to(DEVICE1)
             optimizer.zero_grad()
             
-            outputs = model.head(feature)
+            outputs = model.head(feature, bbox)
             loss = loss_function(outputs, heatmap)
             loss.backward()
             optimizer.step()
@@ -154,12 +154,13 @@ def train(
         model.eval()
         val_loss = 0.0
         with torch.inference_mode(): 
-            for batch, (images, _, heatmap, _) in enumerate(tqdm(valid_loader, desc=f"Validation : Epoch {epoch + 1}/{epochs}", unit="batch")):
+            for batch, (images, _, bbox, heatmap, _) in enumerate(tqdm(valid_loader, desc=f"Validation : Epoch {epoch + 1}/{epochs}", unit="batch")):
                 images = images.to(DEVICE2)
                 feature, _ = model.depth_model(images)
                 feature = feature.to(DEVICE1)
+                bbox = bbox.to(DEVICE1)
                 heatmap = heatmap.to(DEVICE1)
-                outputs = model.head(feature)
+                outputs = model.head(feature, bbox)
                 val_loss += loss_function(outputs, heatmap).item()
 
         avg_val_loss = val_loss / len(valid_loader)

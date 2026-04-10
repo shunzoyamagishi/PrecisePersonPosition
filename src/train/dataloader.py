@@ -12,7 +12,7 @@ from Depth_Anything_V2.depth_anything_v2.util.transform import Resize, Normalize
    
     
 class PersonPositionDataset(Dataset):
-    def __init__(self, root_dir:str, input_size:int=224, target_std:float=5.0, augmentation:Any=None, random_crop:bool=True):
+    def __init__(self, root_dir:str, input_size:int=224, target_std:float=5.0, augmentation:Any=None):
         """
         root_dir: 動画ごとのフォルダが並んでいるルートディレクトリ
         transform: 画像に適用する変換
@@ -21,7 +21,6 @@ class PersonPositionDataset(Dataset):
         self.input_size = input_size
         self.target_std = target_std
         self.augmentation = augmentation
-        self.random_crop = random_crop
         self.transform = transforms.Compose([
             # transforms.ToTensor(),
             Resize(
@@ -72,12 +71,13 @@ class PersonPositionDataset(Dataset):
         bbox_pref = np.array(item['bbox'])         
         P = np.array(item['PerspectiveProjectionMatrix'])
         if self.augmentation:
-            augmented = self.augmentation(image=image, keypoints=np.expand_dims(pos_gt,0), bboxes=np.expand_dims(square,0))
-            # augmented = self.augmentation(image=image, keypoints=np.expand_dims(pos_gt,0), bboxes=np.stack([square, bbox_pref], axis=0))
+            # augmented = self.augmentation(image=image, keypoints=np.expand_dims(pos_gt,0), bboxes=np.expand_dims(square,0))
+            augmented = self.augmentation(image=image, keypoints=np.expand_dims(pos_gt,0), bboxes=np.stack([square, bbox_pref], axis=0))
             if len(augmented['keypoints']) > 0 and len(augmented['bboxes']) > 0:
                 image = augmented["image"]
                 pos_gt = augmented['keypoints'][0]
                 square = augmented['bboxes'][0].astype(np.int32)
+                bbox_pref = augmented['bboxes'][1]
                 flip_applied = any(
                     t.get("__class_fullname__", "").endswith("HorizontalFlip") and t.get("applied", False)
                     for t in augmented["replay"]["transforms"]
@@ -89,12 +89,10 @@ class PersonPositionDataset(Dataset):
                     P = Hx @ P
 
         image = cv2.cvtColor(image,cv2.COLOR_BGR2RGB)
-        if self.random_crop:
-            image, square, side = self.random_square_crop(image, pos_gt, ref_bbox=square)
-        else:
-            image, square, side = self.square_crop(image, pos_gt, square)
+        image, square, side = self.random_square_crop(image, pos_gt, ref_bbox=square)
         image = cv2.resize(image,(self.input_size, self.input_size))
         pos = np.array([self.input_size/side, self.input_size/side])*(pos_gt - square[0:2])
+        bbox_pref = np.clip(np.full(4, self.input_size/side)*(bbox_pref - np.tile(square[0:2], 2)), 0, self.input_size - 1)
 
         P = np.array([[self.input_size/side,0,0],[0,self.input_size/side,0],[0,0,1]])@np.array([[1,0,-square[0]],[0,1,-square[1]],[0,0,1]])@P
 
@@ -120,41 +118,7 @@ class PersonPositionDataset(Dataset):
         image = image / 255.0
         image = self.transform({'image': image})['image']
                 
-        return torch.from_numpy(image).clone(), torch.from_numpy(pos.astype(np.float32)).clone(), torch.from_numpy(heatmap.astype(np.float32)).clone(), torch.from_numpy(P.astype(np.float32)).clone()
-    
-
-    def square_crop(self, image:np.ndarray, point:np.ndarray, bbox:list)->tuple[np.ndarray, np.ndarray, int]:
-        h, w = image.shape[:2]
-        bw = bbox[2]-bbox[0]
-        bh = bbox[3]-bbox[1]
-        
-        if bw > bh:
-            bbox[1] -= (bw-bh)//2
-            bbox[3] += (bw-bh)//2 + (bw-bh)%2
-        elif bh > bw:
-            bbox[0] -= (bh-bw)//2
-            bbox[2] += (bh-bw)//2 + (bh-bw)%2
-
-        margin = int(min(point[0]-bbox[0], point[1]-bbox[1], bbox[2]-point[0], bbox[3]-point[1]))
-        pad = random.randint(-2*margin//3, 2*margin//3)
-        bbox[0] -= pad
-        bbox[1] -= pad
-        bbox[2] += pad
-        bbox[3] += pad
-
-        bbox[0] = max(0, bbox[0])
-        bbox[1] = max(0, bbox[1])
-        bbox[2] = min(w, bbox[2])
-        bbox[3] = min(h, bbox[3])
-
-        new_w = bbox[2] - bbox[0]
-        new_h = bbox[3] - bbox[1]
-        side = min(new_w, new_h)
-
-        bbox[2] = bbox[0] + side
-        bbox[3] = bbox[1] + side
-
-        return image[bbox[1]:bbox[3], bbox[0]:bbox[2]], bbox, side
+        return torch.from_numpy(image).clone(), torch.from_numpy(pos.astype(np.float32)).clone(), torch.from_numpy(bbox_pref.astype(np.float32)).clone(), torch.from_numpy(heatmap.astype(np.float32)).clone(), torch.from_numpy(P.astype(np.float32)).clone()
     
 
     def random_square_crop(
