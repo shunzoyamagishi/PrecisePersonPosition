@@ -114,10 +114,10 @@ class PositionEstimator(nn.Module):
         )
 
     @torch.inference_mode()
-    def inference(self, raw_image: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    def inference(self, raw_image: np.ndarray, bbox: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         image, (h, w) = self.depth_model.image2tensor(raw_image, self.cfg["in_size"])
         
-        depth, pos = self.forward(image)
+        depth, pos = self.forward(image, bbox[None, :])  # Add batch dimension
 
         if self.cfg.get("perspective_heatmap", True):
             pos = pos[:,0:1] + torch.prod(pos, dim=1, keepdim=True)

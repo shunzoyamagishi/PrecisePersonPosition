@@ -58,7 +58,7 @@ class PositionEstimatorPipeline:
             input = input.resize((self.positionestimator.cfg["in_size"], self.positionestimator.cfg["in_size"]))
             scale = self.positionestimator.cfg["in_size"]/(x2-x1)
 
-            depth_result, pred_result = self.positionestimator.inference(np.array(input))
+            depth_result, pred_result = self.positionestimator.inference(raw_image=np.array(input), bbox=bbox)
             mask_region = (scale*(bbox- np.tile([x1,y1],2))).astype(np.uint32)
             pred_result = self.mask_prediction(pred_result, mask_region)
             # pred_point = calc_peak_centroid(pred_result, r=min(img.shape[0:2])//10, rel_thresh=0.5)

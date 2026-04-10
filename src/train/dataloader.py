@@ -92,7 +92,8 @@ class PersonPositionDataset(Dataset):
         image, square, side = self.random_square_crop(image, pos_gt, ref_bbox=square)
         image = cv2.resize(image,(self.input_size, self.input_size))
         pos = np.array([self.input_size/side, self.input_size/side])*(pos_gt - square[0:2])
-        bbox_pref = np.clip(np.full(4, self.input_size/side)*(bbox_pref - np.tile(square[0:2], 2)), 0, self.input_size - 1)
+        bbox_pref = np.full(4, self.input_size/side)*(bbox_pref - np.tile(square[0:2], 2))
+        bbox_pref = self.jitter_bbox_xyxy_ratio(bbox_pref, self.input_size, self.input_size, ratio=0.1, min_size=10)
 
         P = np.array([[self.input_size/side,0,0],[0,self.input_size/side,0],[0,0,1]])@np.array([[1,0,-square[0]],[0,1,-square[1]],[0,0,1]])@P
 
@@ -225,6 +226,45 @@ class PersonPositionDataset(Dataset):
         return image[bbox[1]:bbox[3], bbox[0]:bbox[2]], bbox, side
 
 
+    def jitter_bbox_xyxy_ratio(
+        self, 
+        bbox:np.ndarray,
+        img_w=None,
+        img_h=None,
+        ratio=0.05,
+        min_size=50
+    ):
+        x1, y1, x2, y2 = bbox.astype(np.float32)
+
+        w = x2 - x1
+        h = y2 - y1
+
+        dx1 = np.random.uniform(-ratio, ratio) * w
+        dy1 = np.random.uniform(-ratio, ratio) * h
+        dx2 = np.random.uniform(-ratio, ratio) * w
+        dy2 = np.random.uniform(-ratio, ratio) * h
+
+        x1_new = x1 + dx1
+        y1_new = y1 + dy1
+        x2_new = x2 + dx2
+        y2_new = y2 + dy2
+
+        x2_new = max(x2_new, x1_new + min_size)
+        y2_new = max(y2_new, y1_new + min_size)
+
+        if img_w is not None:
+            x1_new = np.clip(x1_new, 0, img_w - 1)
+            x2_new = np.clip(x2_new, 0, img_w - 1)
+        if img_h is not None:
+            y1_new = np.clip(y1_new, 0, img_h - 1)
+            y2_new = np.clip(y2_new, 0, img_h - 1)
+
+        x2_new = max(x2_new, x1_new + min_size)
+        y2_new = max(y2_new, y1_new + min_size)
+
+        return np.array([x1_new, y1_new, x2_new, y2_new], dtype=np.float32)
+
+
     def generate_gaussian_heatmap(self, shape:tuple=(400,400), centers:np.ndarray=None, sigma:float=40.0) -> np.ndarray:
         """
         pred: [B, 1, H, W] (dummy shapeを利用してサイズを決定するだけ)
@@ -283,49 +323,3 @@ class PersonPositionDataset(Dataset):
         # r = sqrt( A_tar / (pi * s) )
         r = np.sqrt(A_tar / (np.pi * s))
         return float(r)
-    
-
-class TestDataset(PersonPositionDataset):
-    def __init__(self, root_dir:str, input_size:int=224):
-        self.root_dir = root_dir
-        self.input_size = input_size
-        self.samples = []
-        
-        for dirpath, dirnames, filenames in os.walk(root_dir):
-            dirnames.sort()
-            filenames.sort()
-            if "data.json" not in filenames:
-                continue
-
-            video_path = dirpath
-            json_path = os.path.join(video_path, "data.json")
-
-            with open(json_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            if "imgs" not in data:
-                raise KeyError(f"`imgs` not found in {json_path}")
-            cam_param = data.get("Camera Parameter", {})
-            if cam_param.get("Perspective Projection Matrix", None) is None:
-                raise KeyError(f"`Camera Parameter/Perspective Projection Matrix` not found in {json_path}")
-
-            for img in data['imgs']:
-                    img['img_name'] = os.path.join(video_path, img['img_name'])
-                    img['PerspectiveProjectionMatrix'] = data["Camera Parameter"]["Perspective Projection Matrix"]
-                    img['distancefromperson'] = data["Camera Parameter"]["Distance from Player"]
-                    img['tiltangle'] = data["Camera Parameter"]["Tilt wrt Field"]
-            self.samples += data['imgs']
-
-
-    def __len__(self):
-        return len(self.samples)
-    
-
-    def __getitem__(self, idx)->tuple[np.ndarray, np.ndarray, np.ndarray, tuple[str, int, int]]:
-        item = self.samples[idx]
-        image = cv2.imread(item['img_name'])
-        pos_gt = np.array(item['pos'])
-        P = np.array(item['PerspectiveProjectionMatrix'])
-        
-        image = cv2.cvtColor(image,cv2.COLOR_BGR2RGB)
-    
-        return image, pos_gt, P, (item['img_name'], item['distancefromperson'], item['tiltangle'])
