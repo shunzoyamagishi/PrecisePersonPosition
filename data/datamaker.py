@@ -113,7 +113,6 @@ def main(root_dir:str, motion:str, unityproject_path:str):
 
                 square[[0, 2]] = np.clip(bbox[[0, 2]] + [-pad_w, pad_w], 0, image.size[0])
                 square[[1, 3]] = np.clip(bbox[[1, 3]] + [-pad_h, pad_h], 0, image.size[1])
-                # img_inf = img[bbox[1]:bbox[3], bbox[0]:bbox[2]]
                 square = expand_bbox_to_include_point(
                     square=square,
                     pt=(pts[0], pts[1]),
