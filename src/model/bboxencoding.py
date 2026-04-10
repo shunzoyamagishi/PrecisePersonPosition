@@ -55,7 +55,7 @@ class BboxEncoding(nn.Module):
 
         # grid [1,H,W] -> broadcast to [B,H,W]
         x = torch.linspace(0, W - 1, W, device=device, dtype=dtype)
-        y = torch.linspace(0, H - 1, H, device=device, dtype=feature.dtype)
+        y = torch.linspace(0, H - 1, H, device=device, dtype=dtype)
         Y, X = torch.meshgrid(y, x, indexing="ij")  # [H,W]
         X = X[None, ...]  # [1,H,W]
         Y = Y[None, ...]  # [1,H,W]
