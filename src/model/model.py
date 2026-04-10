@@ -8,7 +8,7 @@ import numpy as np
 import warnings
 
 from .depth import DepthFeatureExtractor
-from .swintransformerhead import SwinTransformerHead, SwinTransformerHeadWithBBox
+from .swintransformerhead import SwinTransformerHead
 
 from src.utils import deep_merge_dict
 
@@ -99,7 +99,7 @@ class PositionEstimator(nn.Module):
     
     def build_head(self, *, model_name: str, in_channel: int, bottleneck_depth: int, out_channel: int, device: str):
         MODEL_REGISTRY = {
-            "swintransformer": SwinTransformerHeadWithBBox,
+            "swintransformer": SwinTransformerHead,
             # You can add your favorite models as needed.
         }
         if model_name not in MODEL_REGISTRY:
