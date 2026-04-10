@@ -1,7 +1,7 @@
 .vscode/
 Depth_Anything_V2/
 models/
-data/
+data/*
 runs/
 yolo11n.pt
 example/
@@ -12,3 +12,5 @@ __pycache__/
 *.pyc
 debug/
 posemlp/
+!data/cameras.json
+!data/datamaker.py
