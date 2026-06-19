@@ -14,3 +14,5 @@ debug/
 posemlp/
 !data/cameras.json
 !data/datamaker.py
+config/*
+!config/*default*
