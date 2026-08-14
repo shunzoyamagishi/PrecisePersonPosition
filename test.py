@@ -7,11 +7,25 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 import argparse
-from typing import Tuple, Optional
+
+from pathlib import Path
+from typing import Sequence
 
 from src.utils import load_config, deep_merge_dict
 from src.inference import PositionEstimatorPipeline
 from src.test import TestDataset
+
+
+METHODS = (
+    "lower_a",
+    "mid_a",
+    "bc_bbox",
+    "pred_point",
+)
+
+DEFAULT_THRESHOLDS = (0.1, 0.25, 0.5, 1.0, 2.0)
+DEFAULT_DISTANCES = (5, 20, 50)
+DEFAULT_TILT_ANGLES = (0, 30, 60)
 
 
 def test(cfg:dict, save_dir:str):
@@ -105,70 +119,199 @@ def test(cfg:dict, save_dir:str):
     df.to_csv(os.path.join(save_dir, 'pred.csv'), index=False)
 
     evaluate_pipeline(df)
-    
 
-def evaluate_pipeline(df:pd.DataFrame):
-    errors = pd.DataFrame({
-        "mean(error)": df[["error_lower_a", "error_mid_a", "error_bc_bbox", "error_pred_point"]].mean(),
-        "std(error)":  df[["error_lower_a", "error_mid_a", "error_bc_bbox", "error_pred_point"]].std(),
-    })
 
-    errors = errors.rename(index={
-        "error_lower_a": "lower_a",
-        "error_mid_a": "mid_a",
-        "error_bc_bbox": "bc_bbox",
-        "error_pred_point": "pred_point",
-    })
-    
-    errors["unbiased_var"] = np.nan
+def threshold_accuracy_series(
+    errors: pd.Series,
+    threshold: float = 0.5,
+) -> float:
+    """Return the fraction of samples whose error is below the threshold."""
+    if errors.empty:
+        return np.nan
 
-    for method in errors.index:
-        df_subset = df[df[f"error_{method}"]<1.0]
-        coords = df_subset[[f'{method}(field)[X]', f'{method}(field)[Y]']]
-        mean_coord = coords.mean()
-        error_frommean = coords - mean_coord
-        dist_error = np.sqrt((error_frommean**2).sum(axis=1))
-        unbiased_var = dist_error.var(ddof=1)
-        errors.loc[method, "unbiased_var"] = unbiased_var
+    return float((errors < threshold).mean())
 
-    thresholds = [0.1, 0.25, 0.5, 1.0, 2.0]
-    for thresh in thresholds:
-        errors[f"acc@{thresh}m"] = np.nan
 
-        for method in errors.index:
-            acc = threshold_accuracy_series(
+def compute_coordinate_statistics(
+    df: pd.DataFrame,
+    method: str,
+) -> tuple[float, float]:
+    """Compute positional spread around the sample mean coordinate.
+
+    Returns
+    -------
+    median_distance_from_mean:
+        Median Euclidean distance from the sample mean coordinate.
+    variance_distance_from_mean:
+        Unbiased variance of Euclidean distances from the sample mean coordinate.
+    """
+    coord_columns = [
+        f"{method}(field)[X]",
+        f"{method}(field)[Y]",
+    ]
+
+    coords = df[coord_columns].dropna()
+
+    if coords.empty:
+        return np.nan, np.nan
+
+    mean_coord = coords.mean()
+    centered_coords = coords - mean_coord
+
+    distances_from_mean = np.linalg.norm(
+        centered_coords.to_numpy(),
+        axis=1,
+    )
+
+    median_distance_from_mean = float(
+        np.median(distances_from_mean)
+    )
+
+    variance_distance_from_mean = (
+        float(np.var(distances_from_mean, ddof=1))
+        if len(distances_from_mean) >= 2
+        else np.nan
+    )
+
+    return (
+        median_distance_from_mean,
+        variance_distance_from_mean,
+    )
+
+
+def evaluate_pipeline(
+    df: pd.DataFrame,
+    save_dir: Path | str | None = None,
+    thresholds: Sequence[float] = DEFAULT_THRESHOLDS,
+    valid_error_threshold: float = 1.0,
+) -> pd.DataFrame:
+    """Evaluate position estimation methods."""
+
+    errors = pd.DataFrame(index=METHODS)
+
+    # ================================================================
+    # Overall evaluation
+    # ================================================================
+    for method in METHODS:
+        error_series = df[f"error_{method}"]
+
+        errors.loc[method, "mean_error"] = error_series.mean()
+        errors.loc[method, "std_error"] = error_series.std()
+
+        (
+            median_distance_from_mean,
+            variance_distance_from_mean,
+        ) = compute_coordinate_statistics(df, method)
+
+        errors.loc[
+            method,
+            "median_distance_from_mean",
+        ] = median_distance_from_mean
+
+        errors.loc[
+            method,
+            "unbiasedvar_distance_from_mean",
+        ] = variance_distance_from_mean
+
+        # Statistics for samples with sufficiently small estimation error.
+        valid_df = df[error_series < valid_error_threshold]
+
+        (
+            valid_median_distance_from_mean,
+            valid_variance_distance_from_mean,
+        ) = compute_coordinate_statistics(
+            valid_df,
+            method,
+        )
+
+        errors.loc[
+            method,
+            f"median_distance_from_mean(error<{valid_error_threshold})",
+        ] = valid_median_distance_from_mean
+
+        errors.loc[
+            method,
+            f"unbiasedvar_distance_from_mean(error<{valid_error_threshold})",
+        ] = valid_variance_distance_from_mean
+
+    # ================================================================
+    # Overall threshold accuracy
+    # ================================================================
+    for threshold in thresholds:
+        column = f"acc@{threshold}m"
+
+        for method in METHODS:
+            errors.loc[method, column] = threshold_accuracy_series(
                 df[f"error_{method}"],
-                threshold=thresh
+                threshold=threshold,
             )
-            errors.loc[method, f"acc@{thresh}m"] = acc
 
-    for dist in [5, 20, 50]:
-        for angle in [0, 30, 60]:
-            df_subset = df.query(f"DistancefromPerson=={dist} & TiltAngle=={angle}")
-            for method in errors.index:
-                errors.loc[method, f"mean(dist={dist}m,tilt={angle}deg)"] = df_subset[f"error_{method}"].mean()
-                errors.loc[method, f"std(dist={dist}m,tilt={angle}deg)"] = df_subset[f"error_{method}"].std()
-            for thresh in thresholds:
-                errors[f"acc@{thresh}m(dist={dist}m,tilt={angle}deg)"] = np.nan
-                for method in errors.index:
-                    if len(df_subset):
-                        acc = threshold_accuracy_series(
-                            df_subset[f"error_{method}"],
-                            threshold=thresh
-                        )
-                        errors.loc[method, f"acc@{thresh}m(dist={dist}m,tilt={angle}deg)"] = acc
-              
-    errors.to_csv(os.path.join(save_dir, 'test.csv'))
+    # ================================================================
+    # Evaluation by camera condition
+    # ================================================================
+    for distance in DEFAULT_DISTANCES:
+        for tilt_angle in DEFAULT_TILT_ANGLES:
+            subset = df[
+                (df["DistancefromPerson"] == distance)
+                & (df["TiltAngle"] == tilt_angle)
+            ]
+
+            condition = f"dist={distance}m,tilt={tilt_angle}deg"
+
+            for method in METHODS:
+                error_series = subset[f"error_{method}"]
+
+                errors.loc[
+                    method,
+                    f"mean_error({condition})",
+                ] = error_series.mean()
+
+                errors.loc[
+                    method,
+                    f"std_error({condition})",
+                ] = error_series.std()
+
+                for threshold in thresholds:
+                    errors.loc[
+                        method,
+                        f"acc@{threshold}m({condition})",
+                    ] = threshold_accuracy_series(
+                        error_series,
+                        threshold=threshold,
+                    )
+
+    # ================================================================
+    # Save
+    # ================================================================
+    if save_dir is not None:
+        save_dir = Path(save_dir)
+        save_dir.mkdir(parents=True, exist_ok=True)
+        errors.to_csv(save_dir / "test.csv")
+
+    # ================================================================
+    # Display representative metrics
+    # ================================================================
+    summary_columns = [
+        "mean_error",
+        "std_error",
+        "median_distance_from_mean",
+        "unbiasedvar_distance_from_mean",
+        f"median_distance_from_mean(error<{valid_error_threshold})",
+        f"unbiasedvar_distance_from_mean(error<{valid_error_threshold})",
+        "acc@0.1m",
+        "acc@0.25m",
+        "acc@0.5m",
+        "acc@1.0m",
+    ]
+
     with pd.option_context(
-        'display.max_rows', None,
-        'display.max_columns', None,
-        'display.width', None
+        "display.max_rows", None,
+        "display.max_columns", None,
+        "display.width", None,
     ):
-        print(errors.iloc[:, [0,2,3,4,5,6,7]])
+        print(errors[summary_columns])
 
-
-def threshold_accuracy_series(s_pred: pd.Series, threshold: float=0.5) -> float:
-    return float((s_pred<threshold).sum()/s_pred.size)
+    return errors
 
 
 if __name__ == "__main__":
