@@ -195,6 +195,7 @@ def evaluate_pipeline(
     for method in METHODS:
         error_series = df[f"error_{method}"]
 
+        errors.loc[method, "samples"] = len(error_series)
         errors.loc[method, "mean_error"] = error_series.mean()
         errors.loc[method, "std_error"] = error_series.std()
 
@@ -223,6 +224,10 @@ def evaluate_pipeline(
             valid_df,
             method,
         )
+        errors.loc[
+            method, 
+            f"valid_samples(error<{valid_error_threshold})",
+        ] = len(valid_df)
 
         errors.loc[
             method,
@@ -313,6 +318,143 @@ def evaluate_pipeline(
 
     return errors
 
+from pathlib import Path
+from typing import Sequence
+
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+
+
+def plot_threshold_accuracy_curve(
+    df: pd.DataFrame,
+    threshold_min: float = 0.0,
+    threshold_max: float = 2.0,
+    threshold_step: float = 0.1,
+    methods: Sequence[str] = METHODS,
+    save_dir: Path | str | None = None,
+    show: bool = True,
+) -> pd.DataFrame:
+    """
+    Plot threshold-accuracy curves for each position estimation method.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Evaluation dataframe containing columns named ``error_{method}``.
+
+    threshold_min : float
+        Minimum error threshold [m].
+
+    threshold_max : float
+        Maximum error threshold [m].
+
+    threshold_step : float
+        Interval between thresholds [m].
+
+    methods : Sequence[str]
+        Methods to evaluate.
+
+    save_dir : Path | str | None
+        Directory in which to save the plot.
+        If None, the plot is not saved.
+
+    show : bool
+        Whether to display the plot.
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame containing threshold-accuracy values.
+        Rows correspond to thresholds and columns correspond to methods.
+    """
+
+    if threshold_step <= 0:
+        raise ValueError("threshold_step must be greater than 0.")
+
+    if threshold_max < threshold_min:
+        raise ValueError(
+            "threshold_max must be greater than or equal to threshold_min."
+        )
+
+    # np.arange can miss the endpoint because of floating-point errors.
+    num_steps = int(
+        np.floor((threshold_max - threshold_min) / threshold_step)
+    )
+
+    thresholds = (
+        threshold_min
+        + np.arange(num_steps + 1) * threshold_step
+    )
+
+    # Explicitly include threshold_max if necessary.
+    if thresholds[-1] < threshold_max:
+        thresholds = np.append(thresholds, threshold_max)
+
+    # ================================================================
+    # Calculate threshold accuracy
+    # ================================================================
+    accuracy_df = pd.DataFrame(
+        index=thresholds,
+        columns=methods,
+        dtype=float,
+    )
+    accuracy_df.index.name = "threshold"
+
+    for method in methods:
+        error_series = df[f"error_{method}"]
+
+        for threshold in thresholds:
+            accuracy_df.loc[threshold, method] = threshold_accuracy_series(
+                error_series,
+                threshold=threshold,
+            )
+
+    # ================================================================
+    # Plot
+    # ================================================================
+    fig, ax = plt.subplots(figsize=(7, 5))
+
+    for method in methods:
+        ax.plot(
+            accuracy_df.index,
+            accuracy_df[method],
+            label=method,
+            marker='o'
+        )
+
+    ax.set_xlabel("Error threshold [m]")
+    ax.set_ylabel("Accuracy")
+    ax.set_xlim(threshold_min, threshold_max)
+    ax.set_ylim(0.0, 1.0)
+    ax.grid(alpha=0.3)
+    ax.legend()
+
+    fig.tight_layout()
+
+    # ================================================================
+    # Save
+    # ================================================================
+    if save_dir is not None:
+        save_dir = Path(save_dir)
+        save_dir.mkdir(parents=True, exist_ok=True)
+
+        fig.savefig(
+            save_dir / "threshold_accuracy_curve.png",
+            dpi=300,
+            bbox_inches="tight",
+        )
+
+        accuracy_df.to_csv(
+            save_dir / "threshold_accuracy_curve.csv",
+        )
+
+    if show:
+        plt.show()
+    else:
+        plt.close(fig)
+
+    return accuracy_df
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="inferenceコード")
