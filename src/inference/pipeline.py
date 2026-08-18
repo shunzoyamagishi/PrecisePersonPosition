@@ -155,8 +155,8 @@ class PositionEstimatorPipeline:
 
     def _validate_box(self, box: np.ndarray, W: int, H: int) -> Tuple[int, int, int, int]:
         """
-        box = [x1, y1, x2, y2] を画像サイズにクリップし、整数化して返す。
-        x1<x2, y1<y2 が満たせない場合は ValueError。
+        Clips box = [x1, y1, x2, y2] to the image size, rounds the values to integers, and returns the result.
+        If x1 < x2 and y1 < y2 cannot be satisfied, a ValueError is raised.
         """
         x1, y1, x2, y2 = map(int, box)
         x1 = int(np.clip(x1, 0, W))
@@ -169,7 +169,6 @@ class PositionEstimatorPipeline:
 
 
     def _gaussian_1d(self, L: int, sigma_ratio: float = 0.2, center: Optional[int] = None) -> np.ndarray:
-        """長さ L の 1D ガウス。最大値で 1 に正規化。"""
         x = np.arange(L, dtype=np.float32)
         c = (L - 1) / 2.0 if center is None else float(center)
         sigma = max(L * float(sigma_ratio), 1e-6)
@@ -179,8 +178,8 @@ class PositionEstimatorPipeline:
 
     def _sigmoid_top_to_bottom(self,L: int, sharpness: float = 0.1, center: Optional[int] = None, top_scale: float = 0.4) -> np.ndarray:
         """
-        上端→中央→下端にかけて α→1 に単調増加する 1D シグモイド。
-        top_scale=α (0<α<=1) が上端の最小倍率。
+        A 1D sigmoid function that monotonically increases from α to 1 from the top to the bottom.
+        top_scale=α (0 < α ≤ 1) is the minimum magnification at the top.
         """
         y = np.arange(L, dtype=np.float32)
         cy = (L - 1) / 2.0 if center is None else float(center)
@@ -201,12 +200,12 @@ class PositionEstimatorPipeline:
         center_y: Optional[int] = None,
         top_scale: float = 0.0,
         gamma_x: float = 1.0,
-        ar_thresh: float = 4/5,          # アスペクト比判定の閾値 (W/H < 0.8 で縦長寄り)
+        ar_thresh: float = 4/5,
     ) -> np.ndarray:
         """
-        (H, W) の 2D 重みマップを生成。
-        - 縦長寄り (W/H < ar_thresh):   x にガウス、y にシグモイド(上弱/下強)
-        - 横長または正方 (W/H >= ...): x, y ともにガウス
+        Generate a 2D weight map (H, W).
+        - Rectangular (W/H < ar_thresh):   Gaussian for x, sigmoid (weaker at the top, stronger at the bottom) for y
+        - Square or horizontal (W/H >= ...): Gaussian for both x and y
         """
         wx = self._gaussian_1d(W, sigma_ratio_x, center_x) ** float(gamma_x)
         if (W / H) < float(ar_thresh):
@@ -227,9 +226,9 @@ class PositionEstimatorPipeline:
         **weight_kwargs,
     ) -> np.ndarray:
         """
-        入力 2D 配列 heatmap に対し、box=[x1,y1,x2,y2] 領域へ重みマップを掛けた値を配置し、
-        領域外は 0。最後に（デフォルト）全体を z-score 正規化。
-        weight_kwargs は make_weight にそのまま渡される。
+        Given a 2D array heatmap as input, this function places values obtained by multiplying the weight map by the region defined by box=[x1,y1,x2,y2],
+        and sets values outside this region to 0. Finally, the entire result is z-score normalized (by default).
+        weight_kwargs is passed directly to make_weight.
 
         For the input 2D array `heatmap`, place values obtained by applying the weight map to the region `box=[x1,y1,x2,y2]`, setting values outside this region to 0. Finally, perform z-score normalization on the entire array (default).
         `weight_kwargs` is passed directly to `make_weight`.
@@ -246,7 +245,6 @@ class PositionEstimatorPipeline:
 
         mask = np.zeros_like(heatmap, dtype=np.float32)
 
-        # 該当領域の元値をコピーし、重みを乗算
         patch = heatmap[y1:y2, x1:x2].astype(np.float32, copy=False)
         w = self.make_weight(y2 - y1, x2 - x1, **weight_kwargs).astype(np.float32, copy=False)
         mask[y1:y2, x1:x2] = patch * w
@@ -274,16 +272,16 @@ class PositionEstimatorPipeline:
 
     def calc_peak_centroid(self, arr: np.ndarray, r: int = 20, rel_thresh: float | None = None) -> np.ndarray:
         """
-        arr の最大画素付近(半径 r のパッチ)で、画素値を重みとした重心 (x, y) を返す。
-        rel_thresh を指定すると、ピーク値 * rel_thresh 未満の画素は重み 0 として無視する。
+        Returns the center of mass (x, y), weighted by the pixel values, within the region around the maximum pixel in `arr` (a patch with radius `r`).
+        If `rel_thresh` is specified, pixels with values less than the peak value multiplied by `rel_thresh` are ignored and assigned a weight of 0.
 
         Args:
-            arr: 2D 配列 (H, W)
-            r:   ピーク中心からの半径 (パッチは (2r+1) 四方)
-            rel_thresh: 0~1 の相対しきい値。例: 0.5 なら最大値の 50%以上のみ使用
+            arr: 2D array (H, W)
+            r:   Radius from the peak center (the patch is a (2r+1) square)
+            rel_thresh: Relative threshold between 0 and 1. Example: If 0.5, only values equal to or greater than 50% of the maximum value are used
 
         Returns:
-            np.ndarray: [cx, cy] (サブピクセル、浮動小数)
+            np.ndarray: [cx, cy] (subpixels, floating-point)
         """
 
         y0, x0 = np.unravel_index(np.nanargmax(arr), arr.shape)

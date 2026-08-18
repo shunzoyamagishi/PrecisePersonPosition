@@ -17,7 +17,7 @@ class CameraParameter:
         self.camera_pos = torch.from_numpy((out[2][0:3]/out[2][3]).ravel().astype(np.float32)).clone()
         self.xangle, self.yangle, self.zangle = self.decompose_R()
         
-        #OpenCVでは右手系を採用しています！　回転角度は左手系に修正しています！
+        #OpenCV uses a right-handed coordinate system! The rotation angle has been adjusted to a left-handed coordinate system!
                 
         #self.f = (out[0][0][0] + out[0][1][1])/2
         self.f = out[0][1][1]
@@ -51,7 +51,6 @@ class CameraParameter:
         
     def decompose_P(self) -> np.ndarray:
         out = cv2.decomposeProjectionMatrix(self.P.to('cpu').detach().numpy().copy())
-        # 内部パラメータの右下を１にしたいので再度計算
         out = cv2.decomposeProjectionMatrix(self.P.to('cpu').detach().numpy().copy()/out[0][2][2])
         return out
     
@@ -82,11 +81,11 @@ class CameraParameter:
         Ry = (torch.tensor([[1,0,0],[0,0,0],[0,1,0],[0,0,0],[0,0,1],[0,0,0],[0,-1,0],[0,0,0],[1,0,0]], dtype=torch.float32) @ cos_sin[1]).view(3, 3)
         Rz = (torch.tensor([[1,0,0],[0,-1,0],[0,0,0],[0,1,0],[1,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,1]], dtype=torch.float32) @ cos_sin[2]).view(3, 3)
                 
-        # カメラの回転は x軸 -> y軸 -> z軸 の順
-        # よって変換行列は X軸 -> Y軸 -> Z軸 の順
+        # Camera rotation follows the order: x-axis -> y-axis -> z-axis
+        # Therefore, the transformation matrix follows the order: x-axis -> y-axis -> z-axis
         #return torch.t(Rx @ Ry @ Rz)
         if self.rotationorder == 'XYZ':
-            return torch.t(Rz @ Ry @ Rx) # 右手系左手系の違い...
+            return torch.t(Rz @ Ry @ Rx)
         elif self.rotationorder == 'ZXY':
             return torch.t(Ry @ Rx @ Rz)
         else:
@@ -140,7 +139,7 @@ class CameraParameterforUnity:
         Ry = np.array([[math.cos(phi), 0, math.sin(phi)],[0, 1, 0],[-math.sin(phi), 0, math.cos(phi)]])
         Rz = np.array([[math.cos(psi), -math.sin(psi), 0],[math.sin(psi), math.cos(psi), 0],[0, 0, 1]])
         
-        R = (Ry @ Rx @ Rz).T # Y軸 -> X軸 -> Z軸の順
+        R = (Ry @ Rx @ Rz).T # Y -> X -> Z
         #R = R_Z.T @ R_X.T @ R_Y.T
         return R
 
@@ -152,7 +151,7 @@ class CameraParameterforUnity:
 
     def calc_A(self):
         # 内部パラメータ
-        A = np.array([[self.f,0,0],[0,self.f,0],[0,0,1]]) #カメラひずみ、スキュー、光軸ずれはなしとする
+        A = np.array([[self.f,0,0],[0,self.f,0],[0,0,1]])
         return A
 
     def calc_P(self):

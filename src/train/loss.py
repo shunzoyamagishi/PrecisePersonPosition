@@ -64,18 +64,14 @@ class CrossEntropyLoss(nn.Module):
         B = pred.size(0)
         target_map = self.generate_gaussian_heatmap(pred, targets)
 
-        # reshape
         pred_flat = pred.view(B, -1)           # (B, H*W)
         target_flat = target_map.view(B, -1)   # (B, H*W)
 
-        # Softmaxで確率
         pred_probs = F.softmax(pred_flat, dim=1)
         log_pred_probs = torch.log(pred_probs + eps)
 
-        # targetを正規化
         target_probs = target_flat / (target_flat.sum(dim=1, keepdim=True) + eps)
 
-        # 重み付きクロスエントロピー
         weights = 1.0 + self.alpha * target_probs
         loss = - (weights * target_probs * log_pred_probs).sum(dim=1)
 
@@ -127,10 +123,8 @@ class MSELoss(nn.Module):
         pred_flat = pred.view(B, -1)           # (B, H*W)
         target_flat = target_map.view(B, -1)   # (B, H*W)
 
-        # Softmaxで確率
         pred_probs = F.softmax(pred_flat, dim=1)
 
-        # targetを正規化
         target_probs = target_flat / (target_flat.sum(dim=1, keepdim=True) + eps)
 
         loss = F.mse_loss(pred_probs, target_probs)
@@ -178,8 +172,7 @@ class KLDivLoss(nn.Module):
 
         # log_softmax
         pred_logsoftmax = F.log_softmax(pred, dim=2)
-
-        # 正規化して確率分布に
+        
         target_probs = F.softmax(target_map, dim=2) + eps
         target_probs = target_probs / target_probs.sum(dim=2, keepdim=True)
 

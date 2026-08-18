@@ -13,10 +13,6 @@ from Depth_Anything_V2.depth_anything_v2.util.transform import Resize, Normalize
     
 class PersonPositionDataset(Dataset):
     def __init__(self, root_dir:str, input_size:int=224, target_std:float=5.0, augmentation:Any=None, random_crop:bool=True):
-        """
-        root_dir: 動画ごとのフォルダが並んでいるルートディレクトリ
-        transform: 画像に適用する変換
-        """
         self.root_dir = root_dir
         self.input_size = input_size
         self.target_std = target_std
@@ -163,15 +159,15 @@ class PersonPositionDataset(Dataset):
         point:np.ndarray,                  # (x, y)
         ref_bbox:np.ndarray=None,          # あれば side の目安に使用
         rng:Any=random,
-        margin_ratio:float=0.2,       # side に対する点から各辺までの最小距離の比率
-        margin_px_min:int=20,          # 最低でもこの画素は離す（上限が足りなければ縮む）
-        bottom_bias_gamma:float=3.0,  # 下寄りバイアス強度: 1=一様, 大きいほど下寄り
+        margin_ratio:float=0.2,       # The ratio of the minimum distances from a point on the side to each edge
+        margin_px_min:int=20,         # Leave at least this many pixels between them (if there isn't enough space, they will shrink).
+        bottom_bias_gamma:float=3.0,  # Downside Bias Strength: 1 = Uniform; the higher the value, the stronger the downside bias
         max_tries:int=32
     )->tuple[np.ndarray, np.ndarray, int]:
 
         """
-        点を必ず含み、点ができるだけ下方に寄りやすい正方形クロップを返す。
-        返り値: np.array([x0, y0, x1, y1]) 右下は非包含 (x1=x0+side)
+        Returns a square crop that definitely includes the point and is positioned as low as possible.
+        Return value: np.array([x0, y0, x1, y1]) The bottom-right corner is excluded (x1 = x0 + side)
         """
         if rng is None:
             rng = random
@@ -180,7 +176,7 @@ class PersonPositionDataset(Dataset):
         x = max(0, min(w-1, x))
         y = max(0, min(h-1, y))
 
-        # --- side 候補レンジ ---
+        # --- side candidate ---
         if ref_bbox is not None:
             ref_bbox = np.asarray(ref_bbox)
             ref_h = int(ref_bbox[3] - ref_bbox[1])
@@ -193,40 +189,34 @@ class PersonPositionDataset(Dataset):
         lo = max(1, min(pref_lo, global_max))
         hi = max(lo, min(pref_hi, global_max))
 
-        # --- 試行ループ ---
         for _ in range(max_tries):
             side = rng.randint(lo, hi)
 
-            # 希望マージン
             m_wish = max(int(round(side * margin_ratio)), int(margin_px_min))
             m_side_max = (side - 1) // 2
             m_border_x = min(x, (w - 1) - x)
             m_border_y = min(y, (h - 1) - y)
             m = min(m_wish, m_side_max, m_border_x, m_border_y)
             if m < 0:
-                continue  # この side では無理
+                continue
 
-            # x0（横）は一様にサンプル（マージン満たす範囲）
             x0_min = max(0, x - side + 1 + m)
             x0_max = min(w - side, x - m)
             if x0_min > x0_max:
                 continue
             x0 = rng.randint(x0_min, x0_max)
 
-            # y0（縦）は "下寄り" にサンプル
-            # r = (y - y0)/(side-1) ∈ [r_min, r_max] で、rが大きいほど点は下寄り
             r_min = m / side
             r_max = 1.0 - (m / side)
             if r_min > r_max:
                 continue
 
             if bottom_bias_gamma <= 1.0:
-                u = rng.random()  # 一様
+                u = rng.random()
             else:
-                u = rng.random() ** (1.0 / float(bottom_bias_gamma))  # 1 に寄る
+                u = rng.random() ** (1.0 / float(bottom_bias_gamma))
             r = r_min + (r_max - r_min) * u
 
-            # 連続値から y0 を計算して整数化
             y0_cont = y - r * (side - 1)
             y0_min = max(0, y - side + 1 + m)
             y0_max = min(h - side, y - m)
@@ -234,12 +224,10 @@ class PersonPositionDataset(Dataset):
                 continue
 
             y0 = int(round(y0_cont))
-            # 可行範囲にクリップ
             y0 = max(y0_min, min(y0, y0_max))
 
             bbox = np.array([x0, y0, x0 + side, y0 + side], dtype=np.int32)
 
-            # 最終チェック（点が内側 & マージン満たす）
             lx = x - x0
             rx = (x0 + side - 1) - x
             uy = y - y0
@@ -248,7 +236,6 @@ class PersonPositionDataset(Dataset):
             min(lx, rx, uy, dy) >= m:
                 return image[bbox[1]:bbox[3], bbox[0]:bbox[2]], bbox, side
 
-        # フォールバック（マージン拘らず点だけは含む）
         side = min(max(lo, 1), global_max)
         x0_min = max(0, x - side + 1)
         x0_max = min(w - side, x)
@@ -263,7 +250,7 @@ class PersonPositionDataset(Dataset):
 
     def generate_gaussian_heatmap(self, shape:tuple=(400,400), centers:np.ndarray=None, sigma:float=40.0) -> np.ndarray:
         """
-        pred: [B, 1, H, W] (dummy shapeを利用してサイズを決定するだけ)
+        pred: [B, 1, H, W]
         centers: [B, 2] (x, y)
         sigma: float
         Returns:
@@ -289,14 +276,14 @@ class PersonPositionDataset(Dataset):
     
     def local_radius_for_target_area(self, H: np.ndarray, center:tuple[float,float]=(200,200), A_tar:float=100.0) -> float:
         """
-        局所近似: 位置 (x0, y0) に中心を置く元画像上の円の半径 r を返す。
-        ホモグラフィ H により射影した後の面積が A_tar になるように r を決める。
+        Local approximation: Returns the radius r of a circle centered at (x0, y0) on the original image.
+        Determine r such that the area after projection by homography H is A_tar.
 
-        H: 3x3 homography (任意スケール OK)
-        (x0, y0): 円の中心（元画像座標系）
-        A_tar: 射影後の目標面積 (>0)
+        H: 3x3 homography (any scale is acceptable)
+        (x0, y0): Center of the circle (in the original image coordinate system)
+        A_tar: Target area after projection (>0)
 
-        戻り値: 半径 r
+        Return value: Radius r
         """
         x0, y0 = center
         H = np.asarray(H, dtype=float)
@@ -309,12 +296,12 @@ class PersonPositionDataset(Dataset):
         w = H[2,0]*x0 + H[2,1]*y0 + H[2,2]
 
         if np.isclose(w, 0.0):
-            raise ZeroDivisionError("w ≈ 0（地平線付近）で局所近似の式が発散します。中心位置をずらしてください。")
+            raise ZeroDivisionError("The local approximation formula diverges when w ≈ 0 (near the horizon). Please shift the center position.")
 
         s = abs(detH) / (abs(w)**3)
 
         if s <= 0:
-            raise ValueError("無効なスケール s が計算されました（Hが特異に近い可能性）。")
+            raise ValueError("An invalid scale s was calculated (H may be close to a singularity).")
 
         # r = sqrt( A_tar / (pi * s) )
         r = np.sqrt(A_tar / (np.pi * s))
