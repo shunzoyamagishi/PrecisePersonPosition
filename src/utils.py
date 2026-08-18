@@ -18,22 +18,18 @@ def setup_logger(log_dir: str):
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)
 
-    # コンソール用ハンドラ
     console_handler = logging.StreamHandler()
     console_handler.setLevel(logging.INFO)
     formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
     console_handler.setFormatter(formatter)
 
-    # ファイル用ハンドラ
     file_handler = logging.FileHandler(log_file, mode="w", encoding="utf-8")
     file_handler.setLevel(logging.INFO)
     file_handler.setFormatter(formatter)
 
-    # 既存のハンドラを消す（重複防止）
     if logger.hasHandlers():
         logger.handlers.clear()
     
-    # ハンドラを登録
     logger.addHandler(console_handler)
     logger.addHandler(file_handler)
 
@@ -42,10 +38,10 @@ def setup_logger(log_dir: str):
 
 def deep_merge_dict(default: Mapping[str, Any], user: Mapping[str, Any]) -> dict[str, Any]:
     """
-    Recursively merge `user` into `default` and return a NEW dict.
-    - default はベース
-    - user は上書き
-    - dict 同士のときだけ再帰的に merge
+    Recursively merge `user` into `default` and return a NEW dictionary.
+    - `default` is the base
+    - `user` is the overwrite
+    - Merge recursively only when both are dictionaries
     """
     merged: dict[str, Any] = copy.deepcopy(dict(default))  # default を汚さない
 
@@ -57,7 +53,7 @@ def deep_merge_dict(default: Mapping[str, Any], user: Mapping[str, Any]) -> dict
         ):
             merged[k] = deep_merge_dict(merged[k], v)
         else:
-            merged[k] = copy.deepcopy(v)  # user 側も参照共有しない
+            merged[k] = copy.deepcopy(v)
 
     return merged
 

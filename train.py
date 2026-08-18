@@ -173,8 +173,8 @@ def train(
             "modelname": model.cfg["head"],
             "model_depth": model.cfg["head_depth"],
             "model": copy.deepcopy(model.head.state_dict()),
-            "optimizer": optimizer.state_dict(),   # ← AdamWのm/vなどが入る
-            "epoch": epoch+1,                        # 次回は epoch+1 から
+            "optimizer": optimizer.state_dict(),
+            "epoch": epoch+1,
             "train_loss": avg_train_loss,
             "val_loss": avg_val_loss,
             "DepthAnythingV2_encoder": cfg["positionestimation"]["DepthAnythingV2_encoder"],
@@ -193,15 +193,14 @@ def train(
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="学習コード")
-    parser.add_argument("--config", default="config/default_train.yaml", help="設定ファイルのパス")
+    parser = argparse.ArgumentParser(description="train code")
+    parser.add_argument("--config", default="config/default_train.yaml", help="path to config")
     args = parser.parse_args()
 
     assert os.path.exists(args.config), f"config {args.config} is not exists."
     
     cfg = load_config(args.config)
 
-    # モデル保存フォルダ
     save_dir = os.path.join("runs/train", datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
     os.makedirs(save_dir, exist_ok=True)
 

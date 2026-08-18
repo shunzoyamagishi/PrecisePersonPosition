@@ -16,7 +16,7 @@ from persondetection import PersonDetectionPipeline
 
 ROOT_DIR = "data/train"
 MOTION = "SoccerPlayer_walk"
-UNITYPROJECT_PATH = "SoccerPlayer" # 自分の環境によって変更、あるいは引数で指定してください。
+UNITYPROJECT_PATH = "SoccerPlayer" # Please modify this based on your environment or specify it using arguments.
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -119,8 +119,8 @@ def main(root_dir:str, motion:str):
                     img_w=image.size[0],
                     img_h=image.size[1],
                     keep_ratio=True,
-                    ratio_wh=(1,1),      # 正方形維持（必要に応じて変更）
-                    min_margin=80        # 余白が欲しければ増やす
+                    ratio_wh=(1,1),
+                    min_margin=80
                 )
             img['bbox'] = bbox.tolist()
             img['square'] = square.tolist()
@@ -142,14 +142,12 @@ def expand_bbox_to_include_point(
     pt: tuple[float, float],     # (px,py)
     img_w: int, img_h: int,
     keep_ratio: bool = True,
-    ratio_wh: tuple[int, int] = (1, 1),  # 幅:高さ
-    min_margin: int = 0                  # 点からの最低余白(px)
+    ratio_wh: tuple[int, int] = (1, 1),
+    min_margin: int = 0
 ) -> np.ndarray:
     x1, y1, x2, y2 = map(int, square.tolist())
     px, py = float(pt[0]), float(pt[1])
 
-    # 1) まず点を含むまで外向きに拡大（縮小や平行移動はしない）
-    #    点が square の外なら、対応する側を広げる（min_marginも確保）
     if px < x1 + min_margin:
         x1 = int(np.floor(px - min_margin))
     if px > x2 - min_margin:
@@ -159,29 +157,22 @@ def expand_bbox_to_include_point(
     if py > y2 - min_margin:
         y2 = int(np.ceil(py + min_margin))
 
-    # 画像境界でクリップ（はみ出しは許容、ただし最終的にクリップ）
     x1 = max(0, x1); y1 = max(0, y1)
     x2 = min(img_w, x2); y2 = min(img_h, y2)
 
-    # 2) アスペクト比を保つ場合は、短い辺を拡大のみで合わせる
     if keep_ratio:
         w = x2 - x1; h = y2 - y1
-        # 目標比
         rw, rh = ratio_wh
-        # 現在の比と比較し、必要に応じて不足次元を"拡大のみ"で満たす
-        # (a) 幅基準で高さが不足
+
         target_h_from_w = int(np.ceil(w * rh / rw))
-        # (b) 高さ基準で幅が不足
         target_w_from_h = int(np.ceil(h * rw / rh))
 
         if target_h_from_w > h:
-            # 高さ不足 → 上下に拡大（できる範囲で上にも下にも広げる。足りなければ片側をさらに拡大）
             add = target_h_from_w - h
             up = add // 2
             down = add - up
             y1_new = max(0, y1 - up)
             y2_new = min(img_h, y2 + down)
-            # クリップのせいで不足したら、残りを反対側に追加（拡大のみ）
             lack_up = up - (y1 - y1_new)
             lack_down = down - (y2_new - y2)
             if lack_up > 0:
@@ -190,11 +181,9 @@ def expand_bbox_to_include_point(
                 y1_new = max(0, y1_new - lack_down)
             y1, y2 = y1_new, y2_new
 
-        # 再計算
         w = x2 - x1; h = y2 - y1
         target_w_from_h = int(np.ceil(h * rw / rh))
         if target_w_from_h > w:
-            # 幅不足 → 左右に拡大
             add = target_w_from_h - w
             left = add // 2
             right = add - left
@@ -208,7 +197,6 @@ def expand_bbox_to_include_point(
                 x1_new = max(0, x1_new - lack_right)
             x1, x2 = x1_new, x2_new
 
-    # 最終的に整数＆画像内へ
     x1 = int(np.clip(x1, 0, img_w))
     y1 = int(np.clip(y1, 0, img_h))
     x2 = int(np.clip(x2, x1+1, img_w))
@@ -218,11 +206,11 @@ def expand_bbox_to_include_point(
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Unityからのデータから自動アノテーションしてデータセットを作成します。")
-    parser.add_argument("motion", help="モーション名（例: SoccerPlayer_walk）")
-    parser.add_argument("--root_dir", default=ROOT_DIR, help="データセットのルートディレクトリ名前（例: test）")
-    parser.add_argument("--unityproject_path", default=UNITYPROJECT_PATH, help="Unityプロジェクトのパス（例: SoccerPlayer）")
-    parser.add_argument("--reannotate", action="store_true", help="既存のアノテーションを再作成する")
+    parser = argparse.ArgumentParser(description="Create a dataset by automatically annotating data from Unity.")
+    parser.add_argument("motion", help="motion name（ex: SoccerPlayer_walk）")
+    parser.add_argument("--root_dir", default=ROOT_DIR, help="Name of the dataset's root directory（ex: test）")
+    parser.add_argument("--unityproject_path", default=UNITYPROJECT_PATH, help="Unity Project Path（ex: SoccerPlayer）")
+    parser.add_argument("--reannotate", action="store_true", help="Recreate an existing annotation")
     args = parser.parse_args()
     args.root_dir = os.path.join("data", args.root_dir)
     # example usage:

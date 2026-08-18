@@ -457,8 +457,8 @@ def plot_threshold_accuracy_curve(
     return accuracy_df
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="inferenceコード")
-    parser.add_argument("--config", default="config/default_test.yaml", help="設定ファイルのパス")
+    parser = argparse.ArgumentParser(description="test code")
+    parser.add_argument("--config", default="config/default_test.yaml", help="path to config")
     args = parser.parse_args()    
 
     assert os.path.exists(args.config), f"config {args.config} is not exists."
